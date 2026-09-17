@@ -30,10 +30,22 @@ export async function apiFetch<T>(
       headers,
     });
 
-    const data = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await res.json()
+      : null;
 
     if (!res.ok) {
-      throw new Error(data.message || `Request failed with status ${res.status}`);
+      throw new Error(
+        data?.message ||
+          `The API returned a non-JSON response (HTTP ${res.status}). Make sure the backend API is running on ${API_BASE}.`
+      );
+    }
+
+    if (!data) {
+      throw new Error(
+        `The API returned a non-JSON response. Make sure the backend API is running on ${API_BASE}.`
+      );
     }
 
     return data;
