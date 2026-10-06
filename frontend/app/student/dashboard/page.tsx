@@ -1,36 +1,47 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ListingImage } from '../../../components/listing-image';
 import { AuthGuard } from '../../../components/auth-guard';
 import { campusApi, listingApi } from '../../../lib/api';
-import type { Campus, Listing } from '../../../types';
+import type { Campus, Institution, Listing } from '../../../types';
 
 export default function StudentDashboardPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [featured, setFeatured] = useState<Listing[]>([]);
-  const [search, setSearch] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
+  const [campusId, setCampusId] = useState('');
+  const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     async function load() {
-      const [campusRes, listingRes] = await Promise.all([
+      const [institutionRes, campusRes, listingRes] = await Promise.all([
+        campusApi.getInstitutions(),
         campusApi.getCampuses(),
         listingApi.searchListings({ limit: 4, sort: 'newest' }),
       ]);
+      setInstitutions(institutionRes.data || []);
       setCampuses(campusRes.data || []);
       setFeatured(listingRes.data.items || []);
+      setError('');
     }
-    load().catch(() => {});
-  }, []);
+    load().catch((err) => setError(err instanceof Error ? err.message : 'Unable to load the student dashboard.'));
+  }, [reloadKey]);
 
-  const totalListings = useMemo(
-    () => featured.reduce((sum, listing) => sum + listing.availableRooms, 0),
-    [featured]
-  );
+  const discoveryTarget = () => {
+    const params = new URLSearchParams();
+    if (institutionId) params.set('institutionId', institutionId);
+    if (campusId) params.set('campusId', campusId);
+    return `/listings${params.size ? `?${params}` : ''}`;
+  };
 
   return (
     <AuthGuard allowedRoles={['STUDENT']}>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {error ? <p role="alert" className="mb-5 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setReloadKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
         <section className="overflow-hidden rounded-[30px] border border-[var(--beige)] bg-[radial-gradient(circle_at_top_left,_rgba(122,145,117,0.12),_transparent_35%),linear-gradient(135deg,#fdfaf7,#f4eadf)] p-6 shadow-[0_24px_60px_rgba(92,74,56,0.08)] sm:p-8 lg:p-10">
           <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
@@ -41,22 +52,16 @@ export default function StudentDashboardPage() {
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <div className="flex-1 rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 shadow-sm backdrop-blur-sm">
-                  <label className="sr-only">Search homes</label>
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by area, campus, or keyword"
-                    className="w-full bg-transparent text-sm text-[var(--charcoal)] placeholder:text-[var(--text-muted)] outline-none"
-                  />
-                </div>
+                <label className="flex-1"><span className="sr-only">Institution</span><select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)]"><option value="">{institutions.length ? 'All institutions' : 'No institutions available'}</option>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select></label>
+                <label className="flex-1"><span className="sr-only">Campus</span><select value={campusId} onChange={(event) => setCampusId(event.target.value)} disabled={!institutionId} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)] disabled:opacity-60"><option value="">{institutionId ? 'All campuses' : 'Choose an institution first'}</option>{campuses.filter((campus) => campus.institutionId === institutionId).map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select></label>
                 <Link
-                  href={`/listings${search ? `?search=${encodeURIComponent(search)}` : ''}`}
+                  href={discoveryTarget()}
                   className="inline-flex items-center justify-center rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--charcoal-mid)]"
                 >
                   Search homes
                 </Link>
               </div>
+              {institutions.length === 0 ? <p role="status" className="mt-3 text-xs text-[var(--text-muted)]">An administrator must add institutions before campus search is available.</p> : null}
 
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-[var(--charcoal)]">
                 <span className="rounded-full bg-[var(--beige)] px-3 py-2 font-medium">Verified listings</span>
@@ -89,21 +94,6 @@ export default function StudentDashboardPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-[24px] border border-[var(--beige)] bg-white p-5 shadow-sm">
-            <p className="text-sm text-[var(--text-muted)]">Available rooms</p>
-            <p className="mt-3 font-serif text-3xl text-[var(--charcoal)]">{totalListings}</p>
-          </div>
-          <div className="rounded-[24px] border border-[var(--beige)] bg-white p-5 shadow-sm">
-            <p className="text-sm text-[var(--text-muted)]">Nearby homes</p>
-            <p className="mt-3 font-serif text-3xl text-[var(--charcoal)]">{featured.length}</p>
-          </div>
-          <div className="rounded-[24px] border border-[var(--beige)] bg-white p-5 shadow-sm">
-            <p className="text-sm text-[var(--text-muted)]">Verified landlords</p>
-            <p className="mt-3 font-serif text-3xl text-[var(--charcoal)]">{campuses.filter((campus) => campus.isActive).length}</p>
-          </div>
-        </section>
-
         <section className="mt-10">
           <div className="mb-5 flex items-center justify-between gap-3">
             <h2 className="font-serif text-3xl text-[var(--charcoal)]">Popular campuses</h2>
@@ -114,7 +104,7 @@ export default function StudentDashboardPage() {
             {campuses.map((campus) => (
               <Link
                 key={campus.id}
-                href={`/listings?campusId=${campus.id}`}
+                href={`/listings?institutionId=${campus.institutionId || ''}&campusId=${campus.id}`}
                 className="group rounded-[24px] border border-[var(--beige)] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--sand)]"
               >
                 <div className="h-32 overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#d9c7b3,#f7efe8)]">
@@ -142,12 +132,8 @@ export default function StudentDashboardPage() {
           <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
             {featured.map((listing) => (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[26px] border border-[var(--beige)] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-                <div className="h-48 overflow-hidden bg-[var(--cream)]">
-                  <img
-                    src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl || 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=80'}
-                    alt={listing.title}
-                    className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                  />
+                <div className="group relative h-48 overflow-hidden bg-[var(--cream)]">
+                  <ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={listing.title} sizes="(max-width: 1280px) 100vw, 25vw" className="object-cover transition duration-300 group-hover:scale-105" />
                 </div>
 
                 <div className="p-4">

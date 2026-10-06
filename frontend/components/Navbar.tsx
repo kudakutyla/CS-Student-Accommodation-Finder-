@@ -1,25 +1,19 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '../lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
+import { getMediaUrl } from '../lib/api';
 
 export default function Navbar() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
-  };
-
-  const getDashboardLink = () => {
-    if (!user) return '/';
-    if (user.role === 'ADMIN') return '/admin/dashboard';
-    if (user.role === 'LANDLORD') return '/landlord/dashboard';
-    return '/student/dashboard';
+    router.push('/');
   };
 
   return (
@@ -37,21 +31,21 @@ export default function Navbar() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--text-muted)]">
-            <Link
+            {!isLoading && !isAuthenticated ? <Link
               href="/"
               className={`hover:text-[var(--charcoal)] transition-colors ${
                 pathname === '/' ? 'text-[var(--charcoal)] font-semibold' : ''
               }`}
             >
               Home
-            </Link>
+            </Link> : null}
             <Link
-              href="/listings"
+              href={isAuthenticated ? '/listings' : '/login?redirect=%2Flistings'}
               className={`hover:text-[var(--charcoal)] transition-colors ${
                 pathname.startsWith('/listings') ? 'text-[var(--charcoal)] font-semibold' : ''
               }`}
             >
-              Find Accommodation
+              {user?.role === 'LANDLORD' ? 'View Market' : 'Find Accommodation'}
             </Link>
           </nav>
         </div>
@@ -60,12 +54,12 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
-              <Link
-                href={getDashboardLink()}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[var(--beige)] text-[var(--charcoal)] hover:bg-[var(--sand)] transition-all flex items-center gap-2"
-              >
-                <span className="w-2 h-2 rounded-full bg-[var(--accent-sage)]"></span>
-                <span>Dashboard ({user.role})</span>
+              {user.role === 'STUDENT' ? <Link href="/student/favourites" className="hidden text-xs font-semibold text-[var(--charcoal)] hover:underline sm:inline">Saved homes</Link> : null}
+              {user.role !== 'ADMIN' ? <Link href="/messages" className="hidden text-xs font-semibold text-[var(--charcoal)] hover:underline sm:inline">Messages</Link> : null}
+              <Link href="/notifications" className="text-xs font-semibold text-[var(--charcoal)] hover:underline">Updates</Link>
+              <Link href={user.role === 'LANDLORD' ? '/landlord/profile' : user.role === 'STUDENT' ? '/student/profile' : '/admin/dashboard'} className="rounded-xl bg-[var(--beige)] px-3.5 py-1.5 text-xs font-semibold text-[var(--charcoal)] transition-all hover:bg-[var(--sand)] flex items-center gap-2">
+                {user.profilePicture ? <Image src={getMediaUrl(user.profilePicture)} alt={user.name} width={24} height={24} unoptimized className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--warm-white)] text-[10px] font-bold">{user.name.slice(0, 1).toUpperCase()}</span>}
+                <span>{user.name}</span>
               </Link>
               <button
                 onClick={handleLogout}

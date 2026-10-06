@@ -9,14 +9,18 @@ export const createListingSchema = z
     accommodationType: z.nativeEnum(AccommodationType, {
       errorMap: () => ({ message: 'Valid accommodation type is required' }),
     }),
-    pricePerMonth: z.number().positive('Monthly price must be greater than 0'),
+    pricePerMonth: z.coerce.number().positive('Monthly price must be greater than 0'),
     address: z.string().min(3, 'Address is required'),
-    latitude: z.number().min(-90).max(90, 'Valid latitude coordinate is required'),
-    longitude: z.number().min(-180).max(180, 'Valid longitude coordinate is required'),
-    totalRooms: z.number().int().positive('Total rooms must be at least 1'),
-    availableRooms: z.number().int().min(0, 'Available rooms cannot be negative'),
-    amenities: z.array(z.string()).default([]),
-    photos: z.array(z.string().url('Each photo must be a valid URL')).min(1, 'At least one photo URL is required'),
+    totalRooms: z.coerce.number().int().positive('Total rooms must be at least 1'),
+    availableRooms: z.coerce.number().int().min(0, 'Available rooms cannot be negative'),
+    amenities: z.preprocess((value) => {
+      if (typeof value !== 'string') return value;
+      try {
+        return JSON.parse(value);
+      } catch {
+        return [value];
+      }
+    }, z.array(z.string()).default([])),
     availabilityStatus: z.nativeEnum(ListingAvailability).optional().default(ListingAvailability.AVAILABLE),
   })
   .refine((data) => data.availableRooms <= data.totalRooms, {
@@ -32,12 +36,9 @@ export const updateListingSchema = z
     accommodationType: z.nativeEnum(AccommodationType).optional(),
     pricePerMonth: z.number().positive().optional(),
     address: z.string().min(3).optional(),
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
     totalRooms: z.number().int().positive().optional(),
     availableRooms: z.number().int().min(0).optional(),
     amenities: z.array(z.string()).optional(),
-    photos: z.array(z.string().url()).min(1).optional(),
     availabilityStatus: z.nativeEnum(ListingAvailability).optional(),
   })
   .refine(
@@ -54,6 +55,7 @@ export const updateListingSchema = z
   );
 
 export const listingSearchQuerySchema = z.object({
+  institutionId: z.string().optional(),
   campusId: z.string().optional(),
   search: z.string().optional(),
   minPrice: z.coerce.number().min(0).optional(),

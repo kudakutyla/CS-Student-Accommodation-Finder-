@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authenticate = authenticate;
+exports.authenticateOptional = authenticateOptional;
 exports.authorize = authorize;
 exports.requireVerifiedLandlord = requireVerifiedLandlord;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -57,6 +58,40 @@ async function authenticate(req, res, next) {
     catch (error) {
         console.error('Authentication middleware error:', error);
         (0, response_1.sendError)(res, 'Internal authentication error.', 500);
+    }
+}
+async function authenticateOptional(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        next();
+        return;
+    }
+    if (!authHeader.startsWith('Bearer ')) {
+        (0, response_1.sendError)(res, 'Invalid authorization header.', 401);
+        return;
+    }
+    try {
+        const secret = process.env.JWT_SECRET || 'fallback-secret-for-dev-only-32char-long';
+        const decoded = jsonwebtoken_1.default.verify(authHeader.slice(7), secret);
+        const user = await prisma_1.default.user.findUnique({
+            where: { id: decoded.userId },
+            select: { id: true, email: true, name: true, role: true, isVerified: true, isActive: true },
+        });
+        if (!user || !user.isActive) {
+            (0, response_1.sendError)(res, 'User account not found or deactivated.', 401);
+            return;
+        }
+        req.user = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            isVerified: user.isVerified,
+        };
+        next();
+    }
+    catch {
+        (0, response_1.sendError)(res, 'Invalid token. Authentication failed.', 401);
     }
 }
 function authorize(...roles) {

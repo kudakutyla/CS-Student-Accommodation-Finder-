@@ -3,12 +3,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+jest.mock('../src/utils/geocode', () => ({
+    resolveAddressCoordinates: jest.fn().mockResolvedValue({ latitude: -33.9321, longitude: 18.8644 }),
+    calculateGoogleRouteDistanceKm: jest.fn().mockResolvedValue(2.4),
+}));
 const supertest_1 = __importDefault(require("supertest"));
 const app_1 = __importDefault(require("../src/app"));
 describe('Sprint 2: Campus Management Tests', () => {
     let adminToken = '';
     let studentToken = '';
     let createdCampusId = '';
+    let institutionId = '';
     beforeAll(async () => {
         const adminRes = await (0, supertest_1.default)(app_1.default).post('/api/auth/login').send({
             email: 'admin@finder.co.za',
@@ -20,6 +25,8 @@ describe('Sprint 2: Campus Management Tests', () => {
             password: 'StudentPass123!',
         });
         studentToken = studentRes.body.data.token;
+        const institutionsRes = await (0, supertest_1.default)(app_1.default).get('/api/campuses/institutions');
+        institutionId = institutionsRes.body.data[0].id;
     });
     it('Public can fetch active campuses', async () => {
         const res = await (0, supertest_1.default)(app_1.default).get('/api/campuses');
@@ -50,11 +57,10 @@ describe('Sprint 2: Campus Management Tests', () => {
             .post('/api/campuses')
             .set('Authorization', `Bearer ${adminToken}`)
             .send({
+            institutionId,
             name: 'Stellenbosch University (Main)',
             location: 'Stellenbosch, Western Cape',
             address: 'Victoria St, Stellenbosch, 7600',
-            latitude: -33.9321,
-            longitude: 18.8644,
             isActive: true,
         });
         expect(res.status).toBe(201);

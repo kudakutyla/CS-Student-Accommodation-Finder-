@@ -31,15 +31,13 @@ and messaging.
 
 Out of scope unless the contract is revised: payment processing/rent collection, lease
 signing/legal document management, automated identity-document verification, real-time chat
-infrastructure beyond the committed messaging sprint, map-provider billing/turn-by-turn
-navigation, recommendation/ML algorithms, native mobile apps, multi-country tenancy/
+infrastructure beyond the committed messaging sprint, turn-by-turn navigation,
+recommendation/ML algorithms, native mobile apps, multi-country tenancy/
 currency/legal workflows, automated landlord background checks.
 
-Do not overbuild. Known gaps: root frontend page is still the default Next.js starter, admin
-campus create/edit/toggle controls are incomplete in the frontend, favourites/reviews/
-conversations/messages/reports/notifications exist in the data model but are not complete
-end-to-end workflows, and dashboard loading handlers currently swallow request failures
-instead of surfacing explicit error states.
+Do not overbuild. Known gaps: favourites/reviews/conversations/messages/reports/notifications
+still have incomplete end-to-end workflows, and remaining dashboard handlers should surface
+request failures through explicit error states.
 
 ## 3. Architecture
 
@@ -51,8 +49,10 @@ instead of surfacing explicit error states.
   visually and functionally distinct.
 - Authorization is enforced on the backend, never only in the frontend.
 - Public listing results must contain approved listings only — never pending or rejected.
-- Listing distance is calculated server-side using the Haversine formula; campus and listing
-  coordinates are validated before use.
+- Campus and property coordinates are geocoded server-side from their validated addresses.
+- Listing route distance is calculated server-side between those addresses using Google Maps
+  Routes; failed lookups must not fall back to campus coordinates.
+- `GOOGLE_MAPS_API_KEY` is backend-only and must never be exposed to the browser.
 
 ## 4. Tech stack
 
@@ -64,8 +64,8 @@ Use:
 - Next.js App Router, React, TypeScript, Tailwind CSS v4 — frontend.
 
 Do not use: any auth library other than the established JWT + bcrypt pattern, any ORM other
-than Prisma, or client-side distance calculation as a substitute for the server-side
-Haversine check.
+than Prisma, or client-side distance calculation as a substitute for the server-side Google
+Maps route-distance calculation.
 
 ## 5. Data model
 
@@ -90,7 +90,7 @@ exists as the baseline health check).
 ## 7. Security
 
 Never expose to the browser: password hashes (must never appear in any API response),
-database credentials, JWT signing secret.
+database credentials, JWT signing secret, or Google Maps API key.
 
 Never run from the browser: authentication, role authorization (`authenticate`/`authorize`/
 verified-landlord middleware), listing-ownership checks, distance calculation, approval/

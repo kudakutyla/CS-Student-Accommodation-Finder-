@@ -4,16 +4,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.app = void 0;
+const path_1 = __importDefault(require("path"));
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const multer_1 = __importDefault(require("multer"));
 const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../.env') });
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const campus_routes_1 = __importDefault(require("./routes/campus.routes"));
 const listing_routes_1 = __importDefault(require("./routes/listing.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const user_routes_1 = __importDefault(require("./routes/user.routes"));
+const conversation_routes_1 = __importDefault(require("./routes/conversation.routes"));
+const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
+const admin_report_routes_1 = __importDefault(require("./routes/admin.report.routes"));
+const media_routes_1 = __importDefault(require("./routes/media.routes"));
 const response_1 = require("./utils/response");
 exports.app = (0, express_1.default)();
 // Security middleware
@@ -53,13 +60,22 @@ exports.app.get('/', (_req, res) => {
 exports.app.use('/api/auth', auth_routes_1.default);
 exports.app.use('/api/campuses', campus_routes_1.default);
 exports.app.use('/api/listings', listing_routes_1.default);
+exports.app.use('/api/users', user_routes_1.default);
+exports.app.use('/api/conversations', conversation_routes_1.default);
+exports.app.use('/api/notifications', notification_routes_1.default);
 exports.app.use('/api/admin', admin_routes_1.default);
+exports.app.use('/api/admin/reports', admin_report_routes_1.default);
+exports.app.use('/api/media', media_routes_1.default);
 // 404 handler
 exports.app.use((_req, res) => {
     (0, response_1.sendError)(res, 'Requested resource or API endpoint not found', 404);
 });
 // Global error handler
 exports.app.use((err, _req, res, _next) => {
+    if (err instanceof multer_1.default.MulterError || err.message.startsWith('Choose a supported image')) {
+        (0, response_1.sendError)(res, err.message, 400);
+        return;
+    }
     console.error('Unhandled error:', err);
     const message = process.env.NODE_ENV === 'production'
         ? 'An internal server error occurred'

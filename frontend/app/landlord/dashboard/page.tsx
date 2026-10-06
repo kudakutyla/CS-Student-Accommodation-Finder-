@@ -3,24 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AuthGuard } from '../../../components/auth-guard';
-import { campusApi, listingApi } from '../../../lib/api';
+import { listingApi } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth-context';
-import type { Campus, Listing } from '../../../types';
+import type { Listing } from '../../../types';
 
 export default function LandlordDashboardPage() {
   const { user } = useAuth();
-  const [campuses, setCampuses] = useState<Campus[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, availableRooms: 0 });
   const [error, setError] = useState('');
 
   useEffect(() => {
     async function load() {
-      const [campusRes, listingRes] = await Promise.all([
-        campusApi.getCampuses(),
-        listingApi.getMyListings(),
-      ]);
-      setCampuses(campusRes.data || []);
+      const listingRes = await listingApi.getMyListings();
       setListings(listingRes.data.items || []);
       setStats({
         total: listingRes.data.stats?.total || 0,
@@ -44,7 +39,7 @@ export default function LandlordDashboardPage() {
               <p className="mt-4 max-w-xl text-base text-[var(--text-muted)]">Keep your accommodation details current, track approval progress, and make every room easier for students to find.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/listings" className="inline-flex items-center justify-center rounded-2xl border border-[var(--beige)] bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--charcoal)] hover:bg-white">View marketplace</Link>
+              <Link href="/listings" className="inline-flex items-center justify-center rounded-2xl border border-[var(--beige)] bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--charcoal)] hover:bg-white">View Market</Link>
               <Link href="/landlord/listings/create" className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white ${user?.isVerified ? 'bg-[var(--charcoal)] hover:bg-[var(--charcoal-mid)]' : 'cursor-not-allowed bg-[var(--charcoal)]/50'}`} aria-disabled={!user?.isVerified}>Add a property</Link>
             </div>
           </div>
@@ -73,44 +68,28 @@ export default function LandlordDashboardPage() {
           </div>
         ) : null}
 
-        <div className="mt-10 rounded-[28px] border border-[var(--beige)] bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Portfolio</p>
-              <h2 className="mt-2 font-serif text-3xl text-[var(--charcoal)]">Your properties</h2>
-            </div>
-            <span className="text-sm text-[var(--text-muted)]">{campuses.filter((c) => c.isActive).length} active campuses</span>
-          </div>
+        <div className="mt-8 rounded-[28px] border border-[var(--beige)] bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Landlord rating</p>
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            {(() => {
+              const ratings = listings.filter((listing) => listing.reviewCount > 0).map((listing) => listing.averageRating);
+              const average = ratings.length ? ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length : null;
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            {listings.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--sand)] bg-[var(--cream)] p-8 text-center lg:col-span-2">
-                <p className="font-serif text-2xl text-[var(--charcoal)]">Your portfolio is ready for its first home.</p>
-                <p className="mt-2 text-sm text-[var(--text-muted)]">Add a detailed property so students can discover it near their campus.</p>
-              </div>
-            ) : (
-              listings.map((listing) => (
-                <div key={listing.id} className="flex flex-col justify-between gap-5 rounded-2xl border border-[var(--beige)] bg-[var(--cream)] p-4 sm:flex-row sm:items-center">
-                  <div className="flex items-start gap-4">
-                    <div className="h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[var(--sand)]">
-                      <img src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl || 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=300&q=80'} alt="" className="h-full w-full object-cover" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[var(--charcoal)]">{listing.title}</p>
-                      <p className="mt-1 text-sm text-[var(--text-muted)]">{listing.campus?.name ?? 'Campus'} · {listing.availableRooms} of {listing.totalRooms} rooms available</p>
-                      <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${listing.approvalStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : listing.approvalStatus === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{listing.approvalStatus}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-[var(--accent-terracotta)]">R{listing.pricePerMonth.toLocaleString()}</p>
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">{listing.distanceFromCampus.toFixed(1)} km from campus</p>
-                    <Link href={`/listings/${listing.id}`} className="mt-2 inline-block text-sm font-medium text-[var(--brown-dark)] hover:underline">View details</Link>
-                  </div>
-                </div>
-              ))
-            )}
+              if (average === null) {
+                return <span className="text-lg font-semibold text-[var(--charcoal)]">New landlord</span>;
+              }
+
+              const stars = Array.from({ length: 5 }, (_, index) => index < Math.round(average) ? '★' : '☆');
+              return (
+                <>
+                  <span className="text-xl tracking-widest text-[var(--accent-terracotta)]">{stars.join('')}</span>
+                  <span className="text-sm font-semibold text-[var(--charcoal)]">{average.toFixed(1)} / 5</span>
+                </>
+              );
+            })()}
           </div>
         </div>
+
       </div>
     </AuthGuard>
   );

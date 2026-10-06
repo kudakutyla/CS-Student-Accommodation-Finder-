@@ -2,9 +2,11 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ListingImage } from '../../components/listing-image';
 import { campusApi, listingApi } from '../../lib/api';
-import type { Campus, Listing } from '../../types';
+import { useAuth } from '../../lib/auth-context';
+import type { Campus, Institution, Listing } from '../../types';
 
 export default function ListingsPage() {
   return (
@@ -16,49 +18,76 @@ export default function ListingsPage() {
 
 function ListingsPageContent() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const currentQuery = searchParams.toString();
+  const returnPath = `${pathname}${currentQuery ? `?${currentQuery}` : ''}`;
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
   const [filters, setFilters] = useState({
+    institutionId: searchParams.get('institutionId') || '',
     campusId: searchParams.get('campusId') || '',
-    search: searchParams.get('search') || '',
-    minPrice: '',
-    maxPrice: '',
-    maxDistance: '',
-    type: '',
-    availability: '',
-    sort: 'newest',
-    page: 1,
+    keyword: searchParams.get('search') || '',
+    minPrice: searchParams.get('minPrice') || '',
+    maxPrice: searchParams.get('maxPrice') || '',
+    type: searchParams.get('type') || '',
+    availability: searchParams.get('availability') || '',
+    sort: searchParams.get('sort') || 'newest',
+    page: Number(searchParams.get('page')) || 1,
   });
 
   useEffect(() => {
-    async function load() {
-      const campusRes = await campusApi.getCampuses();
-      setCampuses(campusRes.data || []);
+    if (!authLoading && !isAuthenticated) {
+      router.replace(`/login?redirect=${encodeURIComponent(returnPath)}`);
     }
-    load().catch(() => {});
-  }, []);
+  }, [authLoading, isAuthenticated, returnPath, router]);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+    async function load() {
+      const [institutionRes, campusRes] = await Promise.all([campusApi.getInstitutions(), campusApi.getCampuses()]);
+      setInstitutions(institutionRes.data || []);
+      setCampuses(campusRes.data || []);
+    }
+    load().catch((err) => setError(err instanceof Error ? err.message : 'Unable to load campuses.'));
+  }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     async function loadListings() {
       setLoading(true);
-      const res = await listingApi.searchListings({
+      setError('');
+      try {
+        const res = await listingApi.searchListings({
+        institutionId: filters.institutionId || undefined,
         campusId: filters.campusId || undefined,
-        search: filters.search || undefined,
+        search: filters.keyword || undefined,
         minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
         maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
-        maxDistance: filters.maxDistance ? Number(filters.maxDistance) : undefined,
         type: filters.type || undefined,
         availability: filters.availability || undefined,
         sort: filters.sort,
         page: filters.page,
         limit: 12,
-      });
-      setItems(res.data.items || []);
-      setLoading(false);
+        });
+        setItems(res.data.items || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load listings.');
+      } finally {
+        setLoading(false);
+      }
     }
-    loadListings().catch(() => setLoading(false));
-  }, [filters]);
+    void loadListings();
+  }, [authLoading, isAuthenticated, filters, retryKey]);
+
+  if (authLoading || !isAuthenticated) {
+    return <div role="status" className="mx-auto max-w-7xl px-4 py-12 text-sm text-[var(--text-muted)]">Redirecting to sign in...</div>;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -73,18 +102,25 @@ function ListingsPageContent() {
 
           <div className="mt-5 space-y-4">
             <div>
+              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
+              <select value={filters.institutionId} onChange={(e) => setFilters((prev) => ({ ...prev, institutionId: e.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm text-[var(--charcoal)] outline-none">
+                <option value="">{institutions.length ? 'All institutions' : 'No institutions available'}</option>
+                {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+              </select>
+              {institutions.length === 0 ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">An administrator must add institutions before campus filtering is available.</p> : null}
+            </div>
+
+            <div>
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Campus</label>
-              <select value={filters.campusId} onChange={(e) => setFilters((prev) => ({ ...prev, campusId: e.target.value }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm text-[var(--charcoal)] outline-none">
-                <option value="">All campuses</option>
-                {campuses.map((campus) => (
-                  <option key={campus.id} value={campus.id}>{campus.name}</option>
-                ))}
+              <select value={filters.campusId} onChange={(e) => setFilters((prev) => ({ ...prev, campusId: e.target.value }))} disabled={!filters.institutionId} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm text-[var(--charcoal)] outline-none disabled:opacity-60">
+                <option value="">{filters.institutionId ? 'All campuses' : 'Choose an institution first'}</option>
+                {campuses.filter((campus) => campus.institutionId === filters.institutionId).map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Location</label>
-              <input value={filters.search} onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm outline-none" placeholder="Search by city or area" />
+              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Property keyword</label>
+              <input value={filters.keyword} onChange={(e) => setFilters((prev) => ({ ...prev, keyword: e.target.value }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm outline-none" placeholder="Name or features" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -96,11 +132,6 @@ function ListingsPageContent() {
                 <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Max price</label>
                 <input type="number" value={filters.maxPrice} onChange={(e) => setFilters((prev) => ({ ...prev, maxPrice: e.target.value }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm outline-none" />
               </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Max distance (km)</label>
-              <input type="number" value={filters.maxDistance} onChange={(e) => setFilters((prev) => ({ ...prev, maxDistance: e.target.value }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm outline-none" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -139,9 +170,10 @@ function ListingsPageContent() {
         </aside>
 
         <main className="space-y-5">
+          {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setRetryKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
           <div className="flex items-center justify-between rounded-[28px] border border-[var(--beige)] bg-white p-5 shadow-sm">
             <p className="text-sm text-[var(--text-muted)]">{loading ? 'Loading listings...' : `${items.length} homes found`}</p>
-            <button onClick={() => setFilters({ campusId: '', search: '', minPrice: '', maxPrice: '', maxDistance: '', type: '', availability: '', sort: 'newest', page: 1 })} className="text-sm font-semibold text-[var(--brown-dark)] hover:underline">Reset filters</button>
+            <button onClick={() => setFilters({ institutionId: '', campusId: '', keyword: '', minPrice: '', maxPrice: '', type: '', availability: '', sort: 'newest', page: 1 })} className="text-sm font-semibold text-[var(--brown-dark)] hover:underline">Reset filters</button>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -152,12 +184,8 @@ function ListingsPageContent() {
             ) : (
               items.map((listing) => (
                 <Link key={listing.id} href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[26px] border border-[var(--beige)] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-                  <div className="h-52 overflow-hidden bg-[var(--cream)]">
-                    <img
-                      src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl || 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=80'}
-                      alt={listing.title}
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                    />
+                  <div className="relative h-52 overflow-hidden bg-[var(--cream)]">
+                    <ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={listing.title} sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover transition duration-300 group-hover:scale-105" />
                   </div>
 
                   <div className="p-4">

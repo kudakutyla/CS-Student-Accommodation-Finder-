@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "../lib/auth-context";
-import Navbar from "../components/Navbar";
+import AppShell from "../components/app-shell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,8 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col bg-[var(--cream)] text-[var(--charcoal)]">
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1">{children}</main>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

@@ -1,4 +1,13 @@
+import path from 'path';
+import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const sanitizedDatabaseUrl = process.env.DATABASE_URL?.replace(/&channel_binding=require/g, '');
+if (sanitizedDatabaseUrl) {
+  process.env.DATABASE_URL = sanitizedDatabaseUrl;
+}
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 

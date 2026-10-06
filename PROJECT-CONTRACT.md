@@ -109,7 +109,10 @@ Public registration must never create an administrator account.
 - Public listing results must contain approved listings only.
 - Listing ownership must be checked before landlord updates or deletes.
 - Campus coordinates and listing coordinates must be validated.
-- Listing distance must be calculated server-side using the Haversine formula.
+- Campus and property coordinates must be geocoded server-side from validated addresses.
+- Listing distance must be calculated server-side as Google Maps Routes driving distance from
+	the landlord-entered property address to the selected campus address. Failed lookup must not
+	fall back to campus coordinates; the API key remains backend-only.
 - Database state must be reset or isolated before repeatable integration tests.
 
 ## 6. Delivery Status Vocabulary
@@ -234,8 +237,8 @@ Public registration must never create an administrator account.
 - Server-side field validation.
 - Positive price validation.
 - Room-count consistency validation.
-- At least one valid photo URL.
-- Haversine distance calculation from listing to campus.
+- At least one valid uploaded property image.
+- Google Maps Geocoding and Routes calculation from property address to campus address.
 - Initial listing state of `PENDING`.
 - Landlord-owned listing retrieval and management.
 
@@ -243,7 +246,7 @@ Public registration must never create an administrator account.
 
 - Only verified landlords can create listings.
 - `availableRooms` cannot exceed `totalRooms`.
-- Price, coordinates, room counts, and required text are validated.
+- Price, address, room counts, and required text are validated; coordinates are resolved by the backend.
 - The selected campus must exist.
 - Distance is calculated by the backend and stored in kilometers.
 - New listings are not publicly visible before approval.
@@ -287,7 +290,7 @@ Public registration must never create an administrator account.
 
 ## 10. Phase 3: Student Decision Support
 
-**Status:** Proposed. The Prisma model already contains much of the data foundation, but the end-to-end API and UI are not yet complete.
+**Status:** Partially implemented (2026-09-28). Student shortlist, review, and enquiry workflows now have frontend/API paths; isolated unit coverage exists for core access rules. Dedicated-database integration coverage and browser journey verification remain required before declaring this phase complete.
 
 ### Sprint 3.1: Favourites and shortlist
 
@@ -352,7 +355,7 @@ Public registration must never create an administrator account.
 
 ## 11. Phase 4: Safety, Administration, and Operations
 
-**Status:** Proposed. Data models exist for several items, but the complete workflows are not yet implemented.
+**Status:** Partially implemented (2026-09-28). Report moderation, notifications, audit review, user controls, and campus controls now have API/UI foundations. Dedicated-database integration and browser verification remain outstanding.
 
 ### Sprint 4.1: Reporting and moderation
 
@@ -416,7 +419,7 @@ Public registration must never create an administrator account.
 
 ## 12. Phase 5: Release Quality and Deployment
 
-**Status:** Proposed.
+**Status:** Partially implemented (2026-09-28). Release/operations guidance is documented in `RELEASE-OPERATIONS.md`; responsive/accessibility browser verification and provider-specific deployment configuration remain outstanding.
 
 ### Sprint 5.1: Quality, accessibility, and responsive UX
 
@@ -470,7 +473,7 @@ Public registration must never create an administrator account.
 - Student, landlord, and administrator authorization rules.
 - Verified-landlord listing restriction.
 - Campus read and administrator management API.
-- Listing validation and Haversine distance calculation.
+- Listing validation and Google Maps route-distance calculation.
 - Listing photos and primary-photo selection.
 - Listing approval/rejection workflow.
 - Audit logging for listing moderation.
@@ -484,11 +487,18 @@ Public registration must never create an administrator account.
 
 ### Known gaps at contract creation
 
-- The root frontend page remains the default Next.js starter page and should become the public product entry point.
-- Administrator campus create/edit/toggle controls are not yet complete in the frontend.
 - Favourites, reviews, conversations, messages, reports, and notifications are represented in the data model but are not complete end-to-end product workflows.
 - The campus integration test requires a clean database or isolated test data before repeated runs; existing seeded test data can cause a duplicate-campus `409`.
 - Frontend request failures are often swallowed by dashboard loading handlers and should be surfaced through explicit error states.
+
+### Progress since contract creation (2026-09-28)
+
+- Added student shortlist, listing review/report/enquiry actions, student-landlord inbox, and authenticated notifications UI.
+- Added administrator campus create/edit/toggle, report queue/status actions, user verification/account activation, platform statistics, and audit history UI.
+- Added backend notification events for listing moderation, messages, report submission, and report status changes; campus and account changes are auditable.
+- Hardened favourite idempotency and approved-listing visibility, review visibility, and enquiry participant derivation.
+- Added six Prisma-mocked backend unit tests and `RELEASE-OPERATIONS.md`.
+- The current baseline is not release-complete: isolated integration tests, browser smoke/accessibility checks, a reviewed Prisma migration history, and provider-specific deployment remain outstanding. Existing database integration tests must only run against a separately provisioned test database.
 
 ## 14. Testing Contract
 
@@ -516,7 +526,7 @@ The following are not part of the current Sprint 1/2 commitment unless the contr
 - lease signing or legal document management;
 - identity-document verification automation;
 - real-time chat infrastructure beyond the proposed messaging sprint;
-- map-provider billing and turn-by-turn navigation;
+- turn-by-turn navigation;
 - recommendation algorithms or machine learning;
 - native mobile applications;
 - multi-country tenancy, currencies, or legal compliance workflows;

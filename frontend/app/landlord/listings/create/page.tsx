@@ -1,66 +1,113 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AuthGuard } from '../../../../components/auth-guard';
 import { campusApi, listingApi } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
-import type { Campus } from '../../../../types';
+import type { Campus, Institution } from '../../../../types';
+
+const commonAmenities = [
+  'Wi-Fi / Internet',
+  'Laundry Facilities',
+  'Study Area / Study Room',
+  'Parking',
+  'Security / 24-Hour Security',
+];
 
 const initialForm = {
   title: '',
   description: '',
+  institutionId: '',
   campusId: '',
   accommodationType: 'ROOM',
   pricePerMonth: '',
   address: '',
-  latitude: '',
-  longitude: '',
   totalRooms: '1',
   availableRooms: '1',
   amenities: '',
-  photos: '',
   availabilityStatus: 'AVAILABLE',
 };
 
 export default function CreateListingPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [form, setForm] = useState(initialForm);
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [customAmenities, setCustomAmenities] = useState<string[]>([]);
+  const [customAmenityInput, setCustomAmenityInput] = useState('');
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const photoPreviewsRef = useRef<string[]>([]);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    campusApi.getCampuses().then((res) => setCampuses(res.data || [])).catch(() => setError('We could not load the available campuses.'));
+    Promise.all([
+      campusApi.getInstitutions(),
+      campusApi.getCampuses(),
+    ])
+      .then(([institutionRes, campusRes]) => {
+        setInstitutions(institutionRes.data || []);
+        setCampuses(campusRes.data || []);
+      })
+      .catch(() => setError('We could not load the available institutions and campuses.'));
   }, []);
+
+  useEffect(() => () => photoPreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview)), []);
+
+  const visibleCampuses = form.institutionId ? campuses.filter((campus) => campus.institutionId === form.institutionId) : campuses;
+  const allAmenities = Array.from(new Set([...selectedAmenities, ...customAmenities]));
 
   const updateField = (field: keyof typeof initialForm, value: string) => {
     setForm((previous) => ({ ...previous, [field]: value }));
   };
 
+  const toggleAmenity = (amenity: string) => {
+    setSelectedAmenities((previous) =>
+      previous.includes(amenity) ? previous.filter((item) => item !== amenity) : [...previous, amenity]
+    );
+  };
+
+  const addCustomAmenity = () => {
+    const formatted = customAmenityInput.trim();
+    if (!formatted) return;
+
+    setCustomAmenities((previous) =>
+      previous.includes(formatted) ? previous : [...previous, formatted]
+    );
+    setCustomAmenityInput('');
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+
+    if (selectedPhotos.length === 0) {
+      setError('Upload at least one property image before you can publish a listing.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await listingApi.createListing({
-        title: form.title,
-        description: form.description,
-        campusId: form.campusId,
-        accommodationType: form.accommodationType,
-        pricePerMonth: Number(form.pricePerMonth),
-        address: form.address,
-        latitude: Number(form.latitude),
-        longitude: Number(form.longitude),
-        totalRooms: Number(form.totalRooms),
-        availableRooms: Number(form.availableRooms),
-        amenities: form.amenities.split(',').map((item) => item.trim()).filter(Boolean),
-        photos: form.photos.split(',').map((item) => item.trim()).filter(Boolean),
-        availabilityStatus: form.availabilityStatus,
-      });
+      const body = new FormData();
+      body.set('title', form.title);
+      body.set('description', form.description);
+      body.set('campusId', form.campusId);
+      body.set('accommodationType', form.accommodationType);
+      body.set('pricePerMonth', form.pricePerMonth);
+      body.set('address', form.address);
+      body.set('totalRooms', form.totalRooms);
+      body.set('availableRooms', form.availableRooms);
+      body.set('amenities', JSON.stringify(allAmenities));
+      body.set('availabilityStatus', form.availabilityStatus);
+      selectedPhotos.forEach((file) => body.append('photos', file));
+      await listingApi.createListing(body);
       router.push('/landlord/dashboard');
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Unable to submit this listing.');
@@ -96,10 +143,19 @@ export default function CreateListingPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Nearby campus</label>
-              <select required value={form.campusId} onChange={(event) => updateField('campusId', event.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]">
-                <option value="">Select a campus</option>
-                {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
+              <select required value={form.institutionId} onChange={(event) => setForm((previous) => ({ ...previous, institutionId: event.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]">
+                <option value="">{institutions.length ? 'Select an institution' : 'No institutions available'}</option>
+                {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+              </select>
+              {institutions.length === 0 ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">An administrator must add institutions before properties can be linked to a campus.</p> : null}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Campus</label>
+              <select required value={form.campusId} onChange={(event) => updateField('campusId', event.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" disabled={!form.institutionId}>
+                <option value="">{form.institutionId ? 'Select a campus' : 'Select an institution first'}</option>
+                {visibleCampuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
               </select>
             </div>
 
@@ -139,24 +195,50 @@ export default function CreateListingPage() {
               <input required min="0" type="number" value={form.availableRooms} onChange={(event) => updateField('availableRooms', event.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Latitude</label>
-              <input required type="number" step="any" value={form.latitude} onChange={(event) => updateField('latitude', event.target.value)} placeholder="-25.7545" className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Longitude</label>
-              <input required type="number" step="any" value={form.longitude} onChange={(event) => updateField('longitude', event.target.value)} placeholder="28.2314" className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
-            </div>
-
-            <div>
+            <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Amenities</label>
-              <input value={form.amenities} onChange={(event) => updateField('amenities', event.target.value)} placeholder="WiFi, Security, Parking" className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {commonAmenities.map((amenity) => (
+                  <label key={amenity} className="flex items-center gap-2 rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2 text-sm text-[var(--charcoal)]">
+                    <input
+                      type="checkbox"
+                      checked={selectedAmenities.includes(amenity)}
+                      onChange={() => toggleAmenity(amenity)}
+                      className="h-4 w-4 rounded border-[var(--beige)] text-[var(--accent-sage)] focus:ring-[var(--accent-sage)]"
+                    />
+                    {amenity}
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={customAmenityInput}
+                  onChange={(event) => setCustomAmenityInput(event.target.value)}
+                  placeholder="Add a custom amenity"
+                  className="flex-1 rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]"
+                />
+                <button type="button" onClick={addCustomAmenity} className="rounded-2xl border border-[var(--beige)] bg-white px-4 py-3 text-sm font-semibold text-[var(--charcoal)] hover:bg-[var(--cream)]">
+                  Add
+                </button>
+              </div>
+
+              {allAmenities.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {allAmenities.map((amenity) => (
+                    <span key={amenity} className="rounded-full bg-[var(--beige)] px-3 py-1 text-xs font-medium text-[var(--charcoal)]">
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Photo URLs</label>
-              <input required value={form.photos} onChange={(event) => updateField('photos', event.target.value)} placeholder="https://... , https://..." className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
+            <div className="md:col-span-2">
+              <label htmlFor="property-photos" className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Property photos</label>
+              <input id="property-photos" required type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { photoPreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview)); const files = Array.from(event.target.files || []).slice(0, 8); const previews = files.map((file) => URL.createObjectURL(file)); photoPreviewsRef.current = previews; setSelectedPhotos(files); setPhotoPreviews(previews); }} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
+              <p className="mt-2 text-xs text-[var(--text-muted)]">Choose up to 8 JPEG, PNG, or WebP images. Maximum 5 MB each.</p>
+              {selectedPhotos.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{selectedPhotos.map((file, index) => <div key={`${file.name}-${file.lastModified}`} className="overflow-hidden border border-[var(--beige)] bg-white"><Image src={photoPreviews[index]} alt={`Preview of ${file.name}`} width={224} height={112} unoptimized className="h-28 w-full object-cover" /><div className="flex items-center justify-between gap-2 p-2"><span className="truncate text-xs">{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => { URL.revokeObjectURL(photoPreviews[index]); photoPreviewsRef.current = photoPreviewsRef.current.filter((_, fileIndex) => fileIndex !== index); setSelectedPhotos((current) => current.filter((_, fileIndex) => fileIndex !== index)); setPhotoPreviews((current) => current.filter((_, fileIndex) => fileIndex !== index)); }} className="text-xs font-semibold text-red-700">Remove</button></div></div>)}</div> : null}
             </div>
           </div>
 

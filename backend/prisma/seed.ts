@@ -45,6 +45,7 @@ async function main() {
   const campusesData = [
     {
       name: 'TUT Soshanguve Campus',
+      institutionName: 'Tshwane University of Technology',
       location: 'Pretoria, Gauteng',
       address: '2 Aubrey Matlala Rd, Soshanguve, Pretoria, 0152',
       latitude: -25.5401,
@@ -53,6 +54,7 @@ async function main() {
     },
     {
       name: 'TUT Pretoria Campus',
+      institutionName: 'Tshwane University of Technology',
       location: 'Pretoria, Gauteng',
       address: 'Staatsartillerie Rd, Pretoria West, Pretoria, 0183',
       latitude: -25.7323,
@@ -61,6 +63,7 @@ async function main() {
     },
     {
       name: 'University of Pretoria (Hatfield)',
+      institutionName: 'University of Pretoria',
       location: 'Pretoria, Gauteng',
       address: 'Lynnwood Rd, Hatfield, Pretoria, 0002',
       latitude: -25.7545,
@@ -69,6 +72,7 @@ async function main() {
     },
     {
       name: 'University of the Witwatersrand',
+      institutionName: 'University of the Witwatersrand',
       location: 'Johannesburg, Gauteng',
       address: '1 Jan Smuts Ave, Braamfontein, Johannesburg, 2000',
       latitude: -26.1929,
@@ -77,6 +81,7 @@ async function main() {
     },
     {
       name: 'University of Cape Town',
+      institutionName: 'University of Cape Town',
       location: 'Cape Town, Western Cape',
       address: 'Rondebosch, Cape Town, 7700',
       latitude: -33.9577,
@@ -87,7 +92,13 @@ async function main() {
 
   const createdCampuses: Record<string, any> = {};
   for (const c of campusesData) {
-    const campus = await prisma.campus.create({ data: c });
+    const institution = await prisma.institution.upsert({
+      where: { name: c.institutionName },
+      update: { isActive: true },
+      create: { name: c.institutionName, isActive: true },
+    });
+    const { institutionName: _institutionName, ...campusData } = c;
+    const campus = await prisma.campus.create({ data: { ...campusData, institutionId: institution.id } });
     createdCampuses[c.name] = campus;
     console.log(`Created Campus: ${campus.name}`);
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, UserRole } from '../types';
+import { User } from '../types';
 import { authApi } from './api';
 
 interface AuthContextType {
@@ -20,6 +20,7 @@ interface AuthContextType {
     phone?: string;
     role: 'STUDENT' | 'LANDLORD';
   }) => Promise<User>;
+  updateUser: (userData: User) => void;
   logout: () => Promise<void>;
 }
 
@@ -100,6 +101,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUser = (userData: User) => {
+    setUser(userData);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('saf_user', JSON.stringify(userData));
+    }
+  };
+
   const logout = async () => {
     try {
       await authApi.logout();
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin: user?.role === 'ADMIN',
         login,
         register,
+        updateUser,
         logout,
       }}
     >

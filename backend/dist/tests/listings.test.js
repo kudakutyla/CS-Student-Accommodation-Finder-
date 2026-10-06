@@ -3,6 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+jest.mock('../src/utils/geocode', () => ({
+    resolveListingLocation: jest.fn().mockResolvedValue({
+        latitude: -25.7681,
+        longitude: 28.2392,
+        distanceFromCampus: 4.2,
+    }),
+}));
 const supertest_1 = __importDefault(require("supertest"));
 const app_1 = __importDefault(require("../src/app"));
 const prisma_1 = __importDefault(require("../src/config/prisma"));
@@ -70,26 +77,21 @@ describe('Sprint 2: Listings, Approval Workflow & Search Tests', () => {
             expect(res.body.success).toBe(false);
         });
         it('Verified landlord can create listing with multiple photos; distanceFromCampus is calculated and status is PENDING', async () => {
+            const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
             const res = await (0, supertest_1.default)(app_1.default)
                 .post('/api/listings')
                 .set('Authorization', `Bearer ${verifiedLandlordToken}`)
-                .send({
-                title: 'Brooklyn Heights Student Cottage',
-                description: 'Spacious cottage in Brooklyn, Pretoria with quiet study area and solar backup.',
-                campusId,
-                accommodationType: 'STUDIO',
-                pricePerMonth: 4800,
-                address: '320 Murray Street, Brooklyn, Pretoria',
-                latitude: -25.7681,
-                longitude: 28.2392,
-                totalRooms: 2,
-                availableRooms: 1,
-                amenities: ['WiFi', 'Security', 'Solar Power', 'Parking'],
-                photos: [
-                    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800',
-                    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800',
-                ],
-            });
+                .field('title', 'Brooklyn Heights Student Cottage')
+                .field('description', 'Spacious cottage in Brooklyn, Pretoria with quiet study area and solar backup.')
+                .field('campusId', campusId)
+                .field('accommodationType', 'STUDIO')
+                .field('pricePerMonth', '4800')
+                .field('address', '320 Murray Street, Brooklyn, Pretoria')
+                .field('totalRooms', '2')
+                .field('availableRooms', '1')
+                .field('amenities', JSON.stringify(['WiFi', 'Security', 'Solar Power', 'Parking']))
+                .attach('photos', png, { filename: 'front.png', contentType: 'image/png' })
+                .attach('photos', png, { filename: 'lounge.png', contentType: 'image/png' });
             expect(res.status).toBe(201);
             expect(res.body.success).toBe(true);
             expect(res.body.data.approvalStatus).toBe('PENDING'); // Must be PENDING
@@ -97,6 +99,7 @@ describe('Sprint 2: Listings, Approval Workflow & Search Tests', () => {
             expect(typeof res.body.data.distanceFromCampus).toBe('number');
             expect(res.body.data.distanceFromCampus).toBeGreaterThanOrEqual(0);
             expect(res.body.data.photos.length).toBe(2);
+            expect(res.body.data.photos[0].photoUrl).toMatch(/^\/media\/listings\//);
             newListingId = res.body.data.id;
         });
     });

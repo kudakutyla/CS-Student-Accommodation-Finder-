@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../lib/auth-context';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+  const redirectTo = searchParams.get('redirect');
+  const safeRedirect = redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : null;
   const [email, setEmail] = useState('student@finder.co.za');
   const [password, setPassword] = useState('StudentPass123!');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -20,6 +25,10 @@ export default function LoginPage() {
 
     try {
       const user = await login({ email, password });
+      if (safeRedirect) {
+        router.push(safeRedirect);
+        return;
+      }
       if (user.role === 'ADMIN') router.push('/admin/dashboard');
       else if (user.role === 'LANDLORD') router.push('/landlord/dashboard');
       else router.push('/student/dashboard');
@@ -61,7 +70,10 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="password" className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Password</label>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-white px-4 py-3 outline-none transition focus:border-[var(--accent-sage)]" placeholder="Enter your password" required />
+              <div className="flex rounded-2xl border border-[var(--beige)] bg-white focus-within:border-[var(--accent-sage)]">
+                <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="min-w-0 flex-1 rounded-l-2xl bg-transparent px-4 py-3 outline-none" placeholder="Enter your password" required />
+                <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="px-4 text-[var(--text-muted)] hover:text-[var(--charcoal)]"><span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>{showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button>
+              </div>
             </div>
 
             {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
@@ -78,5 +90,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[calc(100vh-64px)] items-center justify-center text-sm text-[var(--text-muted)]">Loading sign in…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

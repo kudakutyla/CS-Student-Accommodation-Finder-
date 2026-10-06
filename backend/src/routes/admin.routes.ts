@@ -4,6 +4,9 @@ import {
   approveListing,
   rejectListing,
   getAdminStats,
+  getAdminUsers,
+  updateAdminUser,
+  getAdminAuditLogs,
 } from '../controllers/admin.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 
@@ -16,5 +19,8 @@ router.get('/listings/pending', getPendingListings);
 router.patch('/listings/:id/approve', approveListing);
 router.patch('/listings/:id/reject', rejectListing);
 router.get('/stats', getAdminStats);
+router.get('/users', getAdminUsers);
+router.patch('/users/:id', updateAdminUser);
+router.get('/audit-logs', getAdminAuditLogs);
 
 export default router;

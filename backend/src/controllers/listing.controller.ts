@@ -6,10 +6,12 @@ import {
   listingSearchQuerySchema,
 } from '../validators/listing.validator';
 import { sendSuccess, sendError } from '../utils/response';
-import { calculateHaversineDistance } from '../utils/distance';
+import { GoogleMapsError, resolveListingLocation } from '../utils/geocode';
+import { deleteStoredFile, storeUploadedFile } from '../utils/file-storage';
 import { Prisma } from '@prisma/client';
 
 export async function createListing(req: Request, res: Response): Promise<void> {
+  const storedPhotos: Array<{ filename: string; mimetype: string }> = [];
   try {
     if (!req.user) {
       sendError(res, 'Authentication required', 401);
@@ -35,24 +37,25 @@ export async function createListing(req: Request, res: Response): Promise<void> 
     }
 
     const data = parsed.data;
+    const uploadedFiles = Array.isArray(req.files) ? req.files : [];
+    if (uploadedFiles.length === 0) {
+      sendError(res, 'Upload at least one property image before submitting this listing.', 400);
+      return;
+    }
 
     // Verify campus exists
     const campus = await prisma.campus.findUnique({
       where: { id: data.campusId },
+      include: { institution: { select: { isActive: true } } },
     });
 
-    if (!campus) {
-      sendError(res, 'Selected campus does not exist', 404);
+    if (!campus || !campus.isActive || !campus.institution?.isActive) {
+      sendError(res, 'Selected campus is not available. Choose an active campus under an active institution.', 404);
       return;
     }
 
-    // Calculate distanceFromCampus using Haversine algorithm
-    const distanceFromCampus = calculateHaversineDistance(
-      data.latitude,
-      data.longitude,
-      campus.latitude,
-      campus.longitude
-    );
+    for (const file of uploadedFiles) storedPhotos.push(await storeUploadedFile(file, true));
+    const resolvedLocation = await resolveListingLocation(data.address, campus.address);
 
     const listing = await prisma.listing.create({
       data: {
@@ -63,17 +66,17 @@ export async function createListing(req: Request, res: Response): Promise<void> 
         accommodationType: data.accommodationType,
         pricePerMonth: data.pricePerMonth,
         address: data.address,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        distanceFromCampus,
+        latitude: resolvedLocation.latitude,
+        longitude: resolvedLocation.longitude,
+        distanceFromCampus: resolvedLocation.distanceFromCampus,
         totalRooms: data.totalRooms,
         availableRooms: data.availableRooms,
         amenities: data.amenities,
         availabilityStatus: data.availabilityStatus || 'AVAILABLE',
         approvalStatus: 'PENDING',
         photos: {
-          create: data.photos.map((url, idx) => ({
-            photoUrl: url,
+          create: storedPhotos.map((photo, idx) => ({
+            photoUrl: `/media/listings/${photo.filename}`,
             isPrimary: idx === 0,
           })),
         },
@@ -86,7 +89,16 @@ export async function createListing(req: Request, res: Response): Promise<void> 
 
     sendSuccess(res, listing, 'Listing submitted successfully and awaiting admin approval', 201);
   } catch (error) {
+    await Promise.allSettled(storedPhotos.map((photo) => deleteStoredFile(photo.filename)));
     console.error('createListing error:', error);
+    if (error instanceof GoogleMapsError) {
+      sendError(res, error.message, error.statusCode);
+      return;
+    }
+    if (error instanceof Error && error.message.includes('file content')) {
+      sendError(res, error.message, 400);
+      return;
+    }
     sendError(res, 'Failed to create listing', 500);
   }
 }
@@ -180,6 +192,7 @@ export async function getPublicListings(req: Request, res: Response): Promise<vo
     }
 
     const {
+      institutionId,
       campusId,
       search,
       minPrice,
@@ -201,6 +214,10 @@ export async function getPublicListings(req: Request, res: Response): Promise<vo
 
     if (campusId) {
       where.campusId = campusId;
+    }
+
+    if (institutionId) {
+      where.campus = { institutionId };
     }
 
     if (type) {
@@ -354,11 +371,9 @@ export async function getListingById(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Security check: if listing is not approved, only owner or admin can view
     if (listing.approvalStatus !== 'APPROVED') {
-      const isOwner = req.user && req.user.id === listing.ownerId;
-      const isAdmin = req.user && req.user.role === 'ADMIN';
-
+      const isOwner = req.user?.id === listing.ownerId;
+      const isAdmin = req.user?.role === 'ADMIN';
       if (!isOwner && !isAdmin) {
         sendError(res, 'This listing is not currently publicly available', 403);
         return;
@@ -415,40 +430,21 @@ export async function updateListing(req: Request, res: Response): Promise<void> 
 
     const data = parsed.data;
 
-    // Recalculate distance if campus or coordinates change
     let distanceFromCampus = existing.distanceFromCampus;
     const targetCampusId = data.campusId || existing.campusId;
-    const targetLat = data.latitude !== undefined ? data.latitude : existing.latitude;
-    const targetLon = data.longitude !== undefined ? data.longitude : existing.longitude;
-
-    if (
-      data.campusId !== undefined ||
-      data.latitude !== undefined ||
-      data.longitude !== undefined
-    ) {
+    let coordinates = { latitude: existing.latitude, longitude: existing.longitude };
+    if (data.campusId !== undefined || data.address !== undefined) {
       const campus = await prisma.campus.findUnique({
         where: { id: targetCampusId },
+        include: { institution: { select: { isActive: true } } },
       });
-      if (campus) {
-        distanceFromCampus = calculateHaversineDistance(
-          targetLat,
-          targetLon,
-          campus.latitude,
-          campus.longitude
-        );
+      if (!campus || !campus.isActive || !campus.institution?.isActive) {
+        sendError(res, 'Selected campus is not available. Choose an active campus under an active institution.', 404);
+        return;
       }
-    }
-
-    // If photos updated, recreate them
-    if (data.photos && data.photos.length > 0) {
-      await prisma.listingPhoto.deleteMany({ where: { listingId: id } });
-      await prisma.listingPhoto.createMany({
-        data: data.photos.map((url, idx) => ({
-          listingId: id,
-          photoUrl: url,
-          isPrimary: idx === 0,
-        })),
-      });
+      const location = await resolveListingLocation(data.address ?? existing.address, campus.address);
+      coordinates = { latitude: location.latitude, longitude: location.longitude };
+      distanceFromCampus = location.distanceFromCampus;
     }
 
     // If listing was rejected, reset to PENDING on edit
@@ -464,8 +460,7 @@ export async function updateListing(req: Request, res: Response): Promise<void> 
         ...(data.accommodationType && { accommodationType: data.accommodationType }),
         ...(data.pricePerMonth !== undefined && { pricePerMonth: data.pricePerMonth }),
         ...(data.address && { address: data.address }),
-        ...(data.latitude !== undefined && { latitude: data.latitude }),
-        ...(data.longitude !== undefined && { longitude: data.longitude }),
+        ...(data.address || data.campusId ? coordinates : {}),
         distanceFromCampus,
         ...(data.totalRooms !== undefined && { totalRooms: data.totalRooms }),
         ...(data.availableRooms !== undefined && { availableRooms: data.availableRooms }),
@@ -483,6 +478,10 @@ export async function updateListing(req: Request, res: Response): Promise<void> 
     sendSuccess(res, updated, 'Listing updated successfully');
   } catch (error) {
     console.error('updateListing error:', error);
+    if (error instanceof GoogleMapsError) {
+      sendError(res, error.message, error.statusCode);
+      return;
+    }
     sendError(res, 'Failed to update listing', 500);
   }
 }

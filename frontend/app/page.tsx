@@ -1,66 +1,113 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ListingImage } from '../components/listing-image';
 import { campusApi, listingApi } from '../lib/api';
-import type { Campus, Listing } from '../types';
+import { useAuth } from '../lib/auth-context';
+import type { Campus, Institution, Listing } from '../types';
 
 export default function Home() {
-  const [search, setSearch] = useState('');
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const [campusId, setCampusId] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
+  const [accommodationType, setAccommodationType] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     Promise.all([
+      campusApi.getInstitutions(),
       campusApi.getCampuses(),
       listingApi.searchListings({ limit: 3, sort: 'newest' }),
-    ]).then(([campusRes, listingRes]) => {
+    ]).then(([institutionRes, campusRes, listingRes]) => {
+      setInstitutions(institutionRes.data || []);
       setCampuses(campusRes.data || []);
       setListings(listingRes.data.items || []);
-    }).catch(() => {});
-  }, []);
-
-  const searchHref = `/listings${search ? `?search=${encodeURIComponent(search)}` : ''}`;
+      setLoadError('');
+    }).catch(() => {
+      setLoadError('Live accommodation data is temporarily unavailable. Search all listings or try again shortly.');
+    });
+  }, [reloadKey]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    window.location.href = searchHref;
+    const params = new URLSearchParams();
+    if (institutionId) params.set('institutionId', institutionId);
+    if (campusId) params.set('campusId', campusId);
+    if (accommodationType) params.set('type', accommodationType);
+    if (maxPrice) params.set('maxPrice', maxPrice);
+    const query = params.toString();
+    const target = `/listings${query ? `?${query}` : ''}`;
+
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=${encodeURIComponent(target)}`);
+      return;
+    }
+
+    router.push(target);
   };
 
   return (
     <div className="overflow-hidden">
-      <section className="relative min-h-[620px] overflow-hidden bg-[var(--charcoal)] text-white">
-        <img
-          src="https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=2200&q=85"
-          alt="Warm, modern student living room"
-          className="absolute inset-0 h-full w-full object-cover opacity-75"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,36,32,0.9),rgba(44,36,32,0.45),rgba(44,36,32,0.15))]" />
-        <div className="relative mx-auto flex min-h-[620px] max-w-7xl items-end px-4 pb-16 pt-20 sm:px-6 lg:px-8 lg:pb-20">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#d9e3d5]">Student accommodation, made simpler</p>
-            <h1 className="mt-5 max-w-3xl font-serif text-5xl leading-[1.08] sm:text-6xl lg:text-7xl">A better place to begin your next chapter.</h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-white/80">Find considered, verified homes close to the campus communities that matter to you.</p>
-
-            <form onSubmit={handleSearch} className="mt-8 flex max-w-2xl flex-col gap-3 rounded-[24px] bg-white p-2 shadow-[0_20px_50px_rgba(0,0,0,0.18)] sm:flex-row">
-              <label className="sr-only" htmlFor="home-search">Search for accommodation</label>
-              <input id="home-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by campus, area, or property" className="min-w-0 flex-1 rounded-2xl px-4 py-3 text-sm text-[var(--charcoal)] outline-none" />
-              <button type="submit" className="rounded-2xl bg-[var(--accent-terracotta)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#ad6040]">Find a home</button>
-            </form>
-
-            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/85">
-              <span>✓ Verified listings</span>
-              <span>✓ Near your campus</span>
-              <span>✓ Clear monthly pricing</span>
-            </div>
+      <section className="relative isolate min-h-[min(760px,calc(100svh-64px))] overflow-hidden bg-[var(--charcoal)] text-white">
+        <Image src="/images/campus-hero-exterior.jpg" alt="University campus building and grounds" fill priority sizes="100vw" className="object-cover" />
+        <div className="absolute inset-0 bg-black/45" />
+        <div className="relative mx-auto grid min-h-[min(760px,calc(100svh-64px))] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.78fr)] lg:px-8 lg:py-16">
+          <div className="max-w-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f4d6c5]">Student accommodation finder</p>
+            <h1 className="mt-5 max-w-lg font-serif text-5xl leading-[1.02] sm:text-6xl lg:text-7xl">Find your place. Stay closer.</h1>
+            <p className="mt-6 max-w-md text-base leading-7 text-white/90 sm:text-lg">Safe, verified accommodation near your campus. Browse homes from trusted landlords across South Africa.</p>
           </div>
+
+          <form onSubmit={handleSearch} className="w-full max-w-md justify-self-start rounded-lg bg-[var(--warm-white)] p-5 text-[var(--charcoal)] shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:p-7 lg:justify-self-end">
+            <h2 className="font-semibold text-lg">Find accommodation near your campus</h2>
+            <div className="mt-5 grid gap-3">
+              <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+                Institution
+                <select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)]">
+                  <option value="">{institutions.length ? 'Select an institution...' : 'No institutions available'}</option>
+                  {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
+                </select>
+              </label>
+              {institutions.length === 0 ? <p role="status" className="text-xs text-[var(--text-muted)]">An administrator must add institutions before students can search by campus.</p> : null}
+              <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+                Campus
+                <select value={campusId} onChange={(event) => setCampusId(event.target.value)} disabled={!institutionId} className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)] disabled:opacity-60">
+                  <option value="">{institutionId ? 'Select your campus...' : 'Select an institution first'}</option>
+                  {campuses.filter((campus) => campus.institutionId === institutionId).map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+                Accommodation type
+                <select value={accommodationType} onChange={(event) => setAccommodationType(event.target.value)} className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)]">
+                  <option value="">Any accommodation type</option>
+                  {['ROOM', 'SHARED_ROOM', 'APARTMENT', 'BACHELOR', 'STUDIO', 'HOUSE', 'SHARED_HOUSE', 'STUDENT_RESIDENCE'].map((type) => <option key={type} value={type}>{type.replaceAll('_', ' ')}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+                Maximum budget per month
+                <input type="number" min="1" inputMode="numeric" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="Maximum budget (R/month)" className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)]" />
+              </label>
+            </div>
+            <button type="submit" className="mt-4 min-h-12 w-full rounded-md bg-[var(--charcoal)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--charcoal-mid)]">Search Now</button>
+          </form>
         </div>
       </section>
 
+      {loadError ? <p role="status" className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">{loadError}<button onClick={() => setReloadKey((current) => current + 1)} className="font-semibold underline">Retry</button></p> : null}
+
       <section className="border-b border-[var(--beige)] bg-[var(--warm-white)]">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:grid-cols-3 sm:px-6 lg:px-8">
-          <div><p className="font-serif text-3xl text-[var(--charcoal)]">{campuses.length || '5'}+</p><p className="mt-1 text-sm text-[var(--text-muted)]">campus communities</p></div>
-          <div><p className="font-serif text-3xl text-[var(--charcoal)]">{listings.length || '20'}+</p><p className="mt-1 text-sm text-[var(--text-muted)]">homes to explore</p></div>
+          <div><p className="font-serif text-3xl text-[var(--charcoal)]">{campuses.length}</p><p className="mt-1 text-sm text-[var(--text-muted)]">campus communities</p></div>
+          <div><p className="font-serif text-3xl text-[var(--charcoal)]">{listings.length}</p><p className="mt-1 text-sm text-[var(--text-muted)]">featured homes</p></div>
           <div><p className="font-serif text-3xl text-[var(--charcoal)]">100%</p><p className="mt-1 text-sm text-[var(--text-muted)]">focused on student living</p></div>
         </div>
       </section>
@@ -76,9 +123,9 @@ export default function Home() {
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {campuses.slice(0, 4).map((campus, index) => (
-            <Link key={campus.id} href={`/listings?campusId=${campus.id}`} className="group relative min-h-64 overflow-hidden rounded-[24px] bg-[var(--charcoal)]">
-              <img src={["https://images.unsplash.com/photo-1497366754035-f200968a6e72", "https://images.unsplash.com/photo-1523050854058-8df90110c9f1", "https://images.unsplash.com/photo-1562774053-701939374585", "https://images.unsplash.com/photo-1541339907198-e08756dedf3f"][index]} alt="" className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,rgba(44,36,32,0.9))]" />
+            <Link key={campus.id} href={`/listings?institutionId=${campus.institutionId || ''}&campusId=${campus.id}`} className="group relative min-h-64 overflow-hidden rounded-lg bg-[var(--charcoal)]">
+              <Image src={`/images/campus-${(index % 3) + 1}.jpg`} alt="" fill sizes="(max-width: 768px) 100vw, 25vw" className="object-cover opacity-80 transition duration-500 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-black/45" />
               <div className="relative flex h-full min-h-64 flex-col justify-end p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/70">{campus.listingCount ?? 0} homes</p>
                 <h3 className="mt-2 font-serif text-2xl">{campus.name}</h3>
@@ -97,8 +144,8 @@ export default function Home() {
           </div>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
             {listings.map((listing) => (
-              <Link key={listing.id} href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[24px] bg-white shadow-[0_12px_30px_rgba(92,74,56,0.07)]">
-                <div className="h-56 overflow-hidden bg-[var(--sand)]"><img src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl || 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=80'} alt={listing.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /></div>
+              <Link key={listing.id} href={`/listings/${listing.id}`} className="group overflow-hidden rounded-lg bg-white shadow-[0_12px_30px_rgba(92,74,56,0.07)]">
+                <div className="group relative h-56 overflow-hidden bg-[var(--sand)]"><ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={listing.title} sizes="(max-width: 1024px) 100vw, 33vw" className="object-cover transition duration-500 group-hover:scale-105" /></div>
                 <div className="p-5"><div className="flex justify-between gap-3"><div><h3 className="font-semibold text-[var(--charcoal)]">{listing.title}</h3><p className="mt-1 text-sm text-[var(--text-muted)]">{listing.campus.name}</p></div><p className="font-semibold text-[var(--accent-terracotta)]">R{listing.pricePerMonth.toLocaleString()}</p></div><div className="mt-5 flex justify-between text-xs text-[var(--text-muted)]"><span>{listing.accommodationType}</span><span>{listing.distanceFromCampus.toFixed(1)} km away</span></div></div>
               </Link>
             ))}

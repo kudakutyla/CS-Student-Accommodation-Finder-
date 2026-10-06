@@ -1,3 +1,8 @@
+jest.mock('../src/utils/geocode', () => ({
+  resolveAddressCoordinates: jest.fn().mockResolvedValue({ latitude: -33.9321, longitude: 18.8644 }),
+  calculateGoogleRouteDistanceKm: jest.fn().mockResolvedValue(2.4),
+}));
+
 import request from 'supertest';
 import app from '../src/app';
 
@@ -5,6 +10,7 @@ describe('Sprint 2: Campus Management Tests', () => {
   let adminToken = '';
   let studentToken = '';
   let createdCampusId = '';
+  let institutionId = '';
 
   beforeAll(async () => {
     const adminRes = await request(app).post('/api/auth/login').send({
@@ -18,6 +24,9 @@ describe('Sprint 2: Campus Management Tests', () => {
       password: 'StudentPass123!',
     });
     studentToken = studentRes.body.data.token;
+
+    const institutionsRes = await request(app).get('/api/campuses/institutions');
+    institutionId = institutionsRes.body.data[0].id;
   });
 
   it('Public can fetch active campuses', async () => {
@@ -52,11 +61,10 @@ describe('Sprint 2: Campus Management Tests', () => {
       .post('/api/campuses')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
+        institutionId,
         name: 'Stellenbosch University (Main)',
         location: 'Stellenbosch, Western Cape',
         address: 'Victoria St, Stellenbosch, 7600',
-        latitude: -33.9321,
-        longitude: 18.8644,
         isActive: true,
       });
 

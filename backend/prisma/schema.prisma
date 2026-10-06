@@ -56,13 +56,14 @@ enum EnquiryStatus {
 
 model User {
   id           String    @id @default(uuid())
-  name         String
-  email        String    @unique
-  passwordHash String
-  phone        String?
-  role         UserRole  @default(STUDENT)
-  isVerified   Boolean   @default(false)
-  isActive     Boolean   @default(true)
+  name           String
+  email          String    @unique
+  passwordHash   String
+  phone          String?
+  profilePicture String?
+  role           UserRole  @default(STUDENT)
+  isVerified     Boolean   @default(false)
+  isActive       Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -82,20 +83,36 @@ model User {
   @@index([role])
 }
 
-model Campus {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  location  String
-  address   String
-  latitude  Float
-  longitude Float
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+model Institution {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  shortName String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  listings  Listing[]
+  campuses  Campus[]
 
   @@index([name])
+}
+
+model Campus {
+  id            String      @id @default(uuid())
+  institutionId String?
+  name          String      @unique
+  location      String
+  address       String
+  latitude      Float
+  longitude     Float
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  listings      Listing[]
+
+  @@index([name])
+  @@index([institutionId])
 }
 
 model Listing {
@@ -185,6 +202,9 @@ model Message {
   senderId       String
   receiverId     String
   content        String       @db.Text
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
   isRead         Boolean      @default(false)
   createdAt      DateTime     @default(now())
 
@@ -220,6 +240,7 @@ model Report {
   reason      String
   description String       @db.Text
   status      ReportStatus @default(PENDING)
+  adminReviewNote String?  @db.Text
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 

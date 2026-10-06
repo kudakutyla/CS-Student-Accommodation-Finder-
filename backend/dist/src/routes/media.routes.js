@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const media_controller_1 = require("../controllers/media.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const router = (0, express_1.Router)();
+router.get('/listings/:filename', auth_middleware_1.authenticateOptional, media_controller_1.getListingPhoto);
+router.get('/profiles/:userId/:filename', media_controller_1.getProfilePicture);
+router.get('/messages/:filename', auth_middleware_1.authenticate, media_controller_1.getMessageAttachment);
+exports.default = router;

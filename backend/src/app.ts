@@ -1,15 +1,22 @@
+import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import multer from 'multer';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 import authRoutes from './routes/auth.routes';
 import campusRoutes from './routes/campus.routes';
 import listingRoutes from './routes/listing.routes';
 import adminRoutes from './routes/admin.routes';
+import userRoutes from './routes/user.routes';
+import conversationRoutes from './routes/conversation.routes';
+import notificationRoutes from './routes/notification.routes';
+import adminReportRoutes from './routes/admin.report.routes';
+import mediaRoutes from './routes/media.routes';
 import { sendSuccess, sendError } from './utils/response';
 
 export const app = express();
@@ -59,7 +66,12 @@ app.get('/', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/campuses', campusRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/conversations', conversationRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/reports', adminReportRoutes);
+app.use('/api/media', mediaRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -68,6 +80,10 @@ app.use((_req: Request, res: Response) => {
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof multer.MulterError || err.message.startsWith('Choose a supported image')) {
+    sendError(res, err.message, 400);
+    return;
+  }
   console.error('Unhandled error:', err);
   const message =
     process.env.NODE_ENV === 'production'

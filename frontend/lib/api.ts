@@ -1,4 +1,17 @@
-import { ApiResponse, User, Campus, Listing, Pagination } from '../types';
+import {
+  ApiResponse,
+  AppNotification,
+  Campus,
+  Conversation,
+  Favourite,
+  Institution,
+  Listing,
+  ListingReport,
+  Message,
+  Pagination,
+  Review,
+  User,
+} from '../types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -13,13 +26,12 @@ export async function apiFetch<T>(
 ): Promise<ApiResponse<T>> {
   const token = getToken();
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+  const headers = new Headers(options.headers);
+  const isMultipart = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (!isMultipart && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
   const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
@@ -49,9 +61,23 @@ export async function apiFetch<T>(
     }
 
     return data;
-  } catch (error: any) {
-    throw new Error(error.message || 'Network error occurred');
+  } catch (error: unknown) {
+    throw new Error(error instanceof Error ? error.message : 'Network error occurred');
   }
+}
+
+export function getMediaUrl(reference: string): string {
+  if (/^https?:\/\//i.test(reference)) return reference;
+  return `${API_BASE}${reference.startsWith('/') ? reference : `/${reference}`}`;
+}
+
+export async function fetchMedia(reference: string): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(getMediaUrl(reference), {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!response.ok) throw new Error('This file is unavailable or you do not have permission to view it.');
+  return response.blob();
 }
 
 // Authentication API
@@ -61,6 +87,15 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(credentials),
     }),
+
+  uploadProfilePicture: (file: File) => {
+    const body = new FormData();
+    body.append('picture', file);
+    return apiFetch<{ user: User }>('/users/me/profile-picture', {
+      method: 'POST',
+      body,
+    });
+  },
 
   register: (data: {
     name: string;
@@ -87,17 +122,27 @@ export const authApi = {
 
 // Campuses API
 export const campusApi = {
-  getCampuses: (all = false) =>
-    apiFetch<Campus[]>(`/campuses${all ? '?all=true' : ''}`),
+  getInstitutions: () => apiFetch<Institution[]>('/campuses/institutions'),
+  getAdminInstitutions: () => apiFetch<Institution[]>('/campuses/institutions/manage'),
+  createInstitution: (data: { name: string; shortName?: string | null }) =>
+    apiFetch<Institution>('/campuses/institutions', { method: 'POST', body: JSON.stringify(data) }),
+  updateInstitution: (id: string, data: Partial<Institution>) =>
+    apiFetch<Institution>(`/campuses/institutions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  getCampuses: (all = false, institutionId?: string) => {
+    const query = new URLSearchParams();
+    if (institutionId) query.set('institutionId', institutionId);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return apiFetch<Campus[]>(`${all ? '/campuses/manage' : '/campuses'}${suffix}`);
+  },
 
   getCampusById: (id: string) => apiFetch<Campus>(`/campuses/${id}`),
 
   createCampus: (data: {
     name: string;
+    institutionId: string;
     location: string;
     address: string;
-    latitude: number;
-    longitude: number;
     isActive?: boolean;
   }) =>
     apiFetch<Campus>('/campuses', {
@@ -120,7 +165,7 @@ export const campusApi = {
 
 // Listings API
 export const listingApi = {
-  searchListings: (params: Record<string, any> = {}) => {
+  searchListings: (params: Record<string, unknown> = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -136,29 +181,15 @@ export const listingApi = {
   getListingById: (id: string) => apiFetch<Listing>(`/listings/${id}`),
 
   getMyListings: () =>
-    apiFetch<{ items: Listing[]; stats: any }>('/listings/my'),
+    apiFetch<{ items: Listing[]; stats: Record<string, number> }>('/listings/my'),
 
-  createListing: (data: {
-    title: string;
-    description: string;
-    campusId: string;
-    accommodationType: string;
-    pricePerMonth: number;
-    address: string;
-    latitude: number;
-    longitude: number;
-    totalRooms: number;
-    availableRooms: number;
-    amenities: string[];
-    photos: string[];
-    availabilityStatus?: string;
-  }) =>
+  createListing: (body: FormData) =>
     apiFetch<Listing>('/listings', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body,
     }),
 
-  updateListing: (id: string, data: any) =>
+  updateListing: (id: string, data: Record<string, unknown>) =>
     apiFetch<Listing>(`/listings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -168,6 +199,49 @@ export const listingApi = {
     apiFetch<null>(`/listings/${id}`, {
       method: 'DELETE',
     }),
+};
+
+export const favouriteApi = {
+  list: () => apiFetch<Favourite[]>('/users/favourites'),
+  add: (listingId: string) =>
+    apiFetch<{ listingId: string; isFavourite: boolean }>(`/users/favourites/${listingId}`, { method: 'POST' }),
+  remove: (listingId: string) =>
+    apiFetch<{ listingId: string; isFavourite: boolean }>(`/users/favourites/${listingId}`, { method: 'DELETE' }),
+};
+
+export const reviewApi = {
+  list: (listingId: string) => apiFetch<Review[]>(`/listings/${listingId}/reviews`),
+  create: (listingId: string, data: { rating: number; comment: string }) =>
+    apiFetch<Review>(`/listings/${listingId}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const reportApi = {
+  create: (listingId: string, data: { reason: string; description: string }) =>
+    apiFetch<ListingReport>(`/listings/${listingId}/reports`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const conversationApi = {
+  list: () => apiFetch<Conversation[]>('/conversations'),
+  start: (listingId: string) =>
+    apiFetch<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ listingId }) }),
+  messages: (conversationId: string) => apiFetch<Message[]>(`/conversations/${conversationId}/messages`),
+  send: (conversationId: string, content: string, attachment?: File) => {
+    const body = new FormData();
+    body.append('content', content);
+    if (attachment) body.append('attachment', attachment);
+    return apiFetch<Message>(`/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body,
+    });
+  },
+  markRead: (conversationId: string) =>
+    apiFetch<{ conversationId: string; updated: boolean }>(`/conversations/${conversationId}/read`, { method: 'PATCH' }),
+};
+
+export const notificationApi = {
+  list: () => apiFetch<AppNotification[]>('/notifications'),
+  markRead: (id: string) =>
+    apiFetch<AppNotification>(`/notifications/${id}/read`, { method: 'PATCH' }),
 };
 
 // Admin API
@@ -185,5 +259,16 @@ export const adminApi = {
       body: JSON.stringify({ reason }),
     }),
 
-  getAdminStats: () => apiFetch<any>('/admin/stats'),
+  getAdminStats: () => apiFetch<Record<string, number>>('/admin/stats'),
+  getUsers: () => apiFetch<User[]>('/admin/users'),
+  updateUser: (id: string, data: { isVerified?: boolean; isActive?: boolean }) =>
+    apiFetch<User>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getAuditLogs: (filters: { from?: string; to?: string; targetType?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, value); });
+    return apiFetch<Array<{ id: string; action: string; targetType: string; targetId: string; description: string; createdAt: string; admin: Pick<User, 'id' | 'name'> }>>(`/admin/audit-logs${query.size ? `?${query}` : ''}`);
+  },
+  getReports: () => apiFetch<ListingReport[]>('/admin/reports'),
+  updateReport: (id: string, status: ListingReport['status'], adminReviewNote = '') =>
+    apiFetch<ListingReport>(`/admin/reports/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, adminReviewNote }) }),
 };

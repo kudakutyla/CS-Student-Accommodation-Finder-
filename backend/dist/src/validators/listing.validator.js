@@ -11,14 +11,20 @@ exports.createListingSchema = zod_1.z
     accommodationType: zod_1.z.nativeEnum(client_1.AccommodationType, {
         errorMap: () => ({ message: 'Valid accommodation type is required' }),
     }),
-    pricePerMonth: zod_1.z.number().positive('Monthly price must be greater than 0'),
+    pricePerMonth: zod_1.z.coerce.number().positive('Monthly price must be greater than 0'),
     address: zod_1.z.string().min(3, 'Address is required'),
-    latitude: zod_1.z.number().min(-90).max(90, 'Valid latitude coordinate is required'),
-    longitude: zod_1.z.number().min(-180).max(180, 'Valid longitude coordinate is required'),
-    totalRooms: zod_1.z.number().int().positive('Total rooms must be at least 1'),
-    availableRooms: zod_1.z.number().int().min(0, 'Available rooms cannot be negative'),
-    amenities: zod_1.z.array(zod_1.z.string()).default([]),
-    photos: zod_1.z.array(zod_1.z.string().url('Each photo must be a valid URL')).min(1, 'At least one photo URL is required'),
+    totalRooms: zod_1.z.coerce.number().int().positive('Total rooms must be at least 1'),
+    availableRooms: zod_1.z.coerce.number().int().min(0, 'Available rooms cannot be negative'),
+    amenities: zod_1.z.preprocess((value) => {
+        if (typeof value !== 'string')
+            return value;
+        try {
+            return JSON.parse(value);
+        }
+        catch {
+            return [value];
+        }
+    }, zod_1.z.array(zod_1.z.string()).default([])),
     availabilityStatus: zod_1.z.nativeEnum(client_1.ListingAvailability).optional().default(client_1.ListingAvailability.AVAILABLE),
 })
     .refine((data) => data.availableRooms <= data.totalRooms, {
@@ -33,12 +39,9 @@ exports.updateListingSchema = zod_1.z
     accommodationType: zod_1.z.nativeEnum(client_1.AccommodationType).optional(),
     pricePerMonth: zod_1.z.number().positive().optional(),
     address: zod_1.z.string().min(3).optional(),
-    latitude: zod_1.z.number().min(-90).max(90).optional(),
-    longitude: zod_1.z.number().min(-180).max(180).optional(),
     totalRooms: zod_1.z.number().int().positive().optional(),
     availableRooms: zod_1.z.number().int().min(0).optional(),
     amenities: zod_1.z.array(zod_1.z.string()).optional(),
-    photos: zod_1.z.array(zod_1.z.string().url()).min(1).optional(),
     availabilityStatus: zod_1.z.nativeEnum(client_1.ListingAvailability).optional(),
 })
     .refine((data) => {
@@ -51,6 +54,7 @@ exports.updateListingSchema = zod_1.z
     path: ['availableRooms'],
 });
 exports.listingSearchQuerySchema = zod_1.z.object({
+    institutionId: zod_1.z.string().optional(),
     campusId: zod_1.z.string().optional(),
     search: zod_1.z.string().optional(),
     minPrice: zod_1.z.coerce.number().min(0).optional(),

@@ -10,4 +10,7 @@ router.get('/listings/pending', admin_controller_1.getPendingListings);
 router.patch('/listings/:id/approve', admin_controller_1.approveListing);
 router.patch('/listings/:id/reject', admin_controller_1.rejectListing);
 router.get('/stats', admin_controller_1.getAdminStats);
+router.get('/users', admin_controller_1.getAdminUsers);
+router.patch('/users/:id', admin_controller_1.updateAdminUser);
+router.get('/audit-logs', admin_controller_1.getAdminAuditLogs);
 exports.default = router;

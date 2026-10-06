@@ -65,6 +65,41 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 }
 
+export async function authenticateOptional(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    next();
+    return;
+  }
+  if (!authHeader.startsWith('Bearer ')) {
+    sendError(res, 'Invalid authorization header.', 401);
+    return;
+  }
+
+  try {
+    const secret = process.env.JWT_SECRET || 'fallback-secret-for-dev-only-32char-long';
+    const decoded = jwt.verify(authHeader.slice(7), secret) as JwtPayload;
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, email: true, name: true, role: true, isVerified: true, isActive: true },
+    });
+    if (!user || !user.isActive) {
+      sendError(res, 'User account not found or deactivated.', 401);
+      return;
+    }
+    req.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isVerified: user.isVerified,
+    };
+    next();
+  } catch {
+    sendError(res, 'Invalid token. Authentication failed.', 401);
+  }
+}
+
 export function authorize(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {

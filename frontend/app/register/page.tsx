@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth-context';
@@ -18,6 +19,8 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -96,12 +99,12 @@ export default function RegisterPage() {
 
           <div>
             <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Password</label>
-            <input type="password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-white px-4 py-3 outline-none transition focus:border-[var(--accent-sage)]" placeholder="Create a password" required />
+            <div className="flex rounded-2xl border border-[var(--beige)] bg-white focus-within:border-[var(--accent-sage)]"><input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => handleChange('password', e.target.value)} className="min-w-0 flex-1 rounded-l-2xl bg-transparent px-4 py-3 outline-none" placeholder="Create a password" required /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="px-4 text-[var(--text-muted)] hover:text-[var(--charcoal)]">{showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button></div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Confirm password</label>
-            <input type="password" value={form.confirmPassword} onChange={(e) => handleChange('confirmPassword', e.target.value)} className="w-full rounded-2xl border border-[var(--beige)] bg-white px-4 py-3 outline-none transition focus:border-[var(--accent-sage)]" placeholder="Repeat your password" required />
+            <div className="flex rounded-2xl border border-[var(--beige)] bg-white focus-within:border-[var(--accent-sage)]"><input type={showConfirmPassword ? 'text' : 'password'} value={form.confirmPassword} onChange={(e) => handleChange('confirmPassword', e.target.value)} className="min-w-0 flex-1 rounded-l-2xl bg-transparent px-4 py-3 outline-none" placeholder="Repeat your password" required /><button type="button" aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'} aria-pressed={showConfirmPassword} onClick={() => setShowConfirmPassword((visible) => !visible)} className="px-4 text-[var(--text-muted)] hover:text-[var(--charcoal)]">{showConfirmPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button></div>
           </div>
 
           {error ? <div className="md:col-span-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}

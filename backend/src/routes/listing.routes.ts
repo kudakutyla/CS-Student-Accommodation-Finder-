@@ -7,9 +7,13 @@ import {
   updateListing,
   deleteListing,
 } from '../controllers/listing.controller';
+import { createReview, getListingReviews } from '../controllers/review.controller';
+import { createReport } from '../controllers/report.controller';
+import { listingPhotosUpload } from '../middleware/upload.middleware';
 import {
   authenticate,
   authorize,
+  authenticateOptional,
   requireVerifiedLandlord,
 } from '../middleware/auth.middleware';
 
@@ -22,7 +26,10 @@ router.get('/', getPublicListings);
 router.get('/my', authenticate, authorize('LANDLORD'), getMyListings);
 
 // Specific listing detail (public or authenticated)
-router.get('/:id', getListingById);
+router.get('/:id', authenticateOptional, getListingById);
+router.get('/:id/reviews', getListingReviews);
+router.post('/:id/reviews', authenticate, authorize('STUDENT'), createReview);
+router.post('/:id/reports', authenticate, authorize('STUDENT'), createReport);
 
 // Landlord listing creation (strictly requires verified landlord)
 router.post(
@@ -30,6 +37,7 @@ router.post(
   authenticate,
   authorize('LANDLORD'),
   requireVerifiedLandlord,
+  listingPhotosUpload,
   createListing
 );
 

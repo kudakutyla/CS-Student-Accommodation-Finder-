@@ -5,6 +5,11 @@ const campus_controller_1 = require("../controllers/campus.controller");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
 // Public / Authenticated read
+router.get('/institutions/manage', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('ADMIN'), campus_controller_1.getAdminInstitutions);
+router.get('/institutions', campus_controller_1.getInstitutions);
+router.post('/institutions', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('ADMIN'), campus_controller_1.createInstitution);
+router.patch('/institutions/:id', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('ADMIN'), campus_controller_1.updateInstitution);
+router.get('/manage', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('ADMIN'), campus_controller_1.getAdminCampuses);
 router.get('/', campus_controller_1.getCampuses);
 router.get('/:id', campus_controller_1.getCampusById);
 // Admin-only management
