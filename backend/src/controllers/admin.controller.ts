@@ -188,10 +188,23 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
   }
 }
 
-export async function getAdminUsers(_req: Request, res: Response): Promise<void> {
+export async function getAdminUsers(req: Request, res: Response): Promise<void> {
   try {
+    const filters = z.object({
+      role: z.enum(['STUDENT', 'LANDLORD']).optional(),
+      verified: z.enum(['true', 'false']).optional(),
+    }).safeParse(req.query);
+    if (!filters.success) {
+      sendError(res, filters.error.errors[0].message, 400);
+      return;
+    }
     const users = await prisma.user.findMany({
-      where: { role: { in: ['STUDENT', 'LANDLORD'] } },
+      where: {
+        role: filters.data.role ?? { in: ['STUDENT', 'LANDLORD'] },
+        ...(filters.data.verified !== undefined
+          ? { isVerified: filters.data.verified === 'true' }
+          : {}),
+      },
       select: {
         id: true,
         name: true,

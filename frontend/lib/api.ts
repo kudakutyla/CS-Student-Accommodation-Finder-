@@ -260,7 +260,12 @@ export const adminApi = {
     }),
 
   getAdminStats: () => apiFetch<Record<string, number>>('/admin/stats'),
-  getUsers: () => apiFetch<User[]>('/admin/users'),
+  getUsers: (filters: { role?: User['role']; verified?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (filters.role) query.set('role', filters.role);
+    if (filters.verified !== undefined) query.set('verified', String(filters.verified));
+    return apiFetch<User[]>(`/admin/users${query.size ? `?${query}` : ''}`);
+  },
   updateUser: (id: string, data: { isVerified?: boolean; isActive?: boolean }) =>
     apiFetch<User>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAuditLogs: (filters: { from?: string; to?: string; targetType?: string } = {}) => {
