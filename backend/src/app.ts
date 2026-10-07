@@ -27,7 +27,12 @@ app.use(helmet());
 const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
 app.use(
   cors({
-    origin: [clientUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: [
+      clientUrl,
+      'https://cs-student-accommodation-finder.vercel.app',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ],
     credentials: true,
   })
 );

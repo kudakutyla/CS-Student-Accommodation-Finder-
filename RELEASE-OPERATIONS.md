@@ -10,7 +10,8 @@ Backend variables:
 - `DIRECT_URL`: direct PostgreSQL connection URL used by Prisma tooling when required by the provider.
 - `JWT_SECRET`: private signing secret; use a randomly generated value of at least 32 characters in each deployed environment.
 - `PORT`: HTTP listen port (defaults to `5000`).
-- `CLIENT_URL`: allowed deployed frontend origin.
+- `CLIENT_URL`: allowed deployed frontend origin. For production, set this to
+  `https://cs-student-accommodation-finder.vercel.app`.
 - `NODE_ENV`: set to `production` in the deployed backend.
 - `GOOGLE_MAPS_API_KEY`: private backend key with only the required Geocoding and Routes API
 	permissions; restrict it to the server environment and never use a `NEXT_PUBLIC_` variable.
@@ -64,7 +65,9 @@ the compiled service with `npm start`. The type packages and compiler remain in
 `devDependencies`; they are needed at build time, not runtime. A pre-existing
 Render service configured through the dashboard must use the same build command
 (`npm ci --include=dev && npm run prisma:generate && npm run build`) and start
-command (`npm start`), or be configured to use this Blueprint.
+command (`npm start`), or be configured to use this Blueprint. The API CORS
+allowlist includes the production Vercel origin above; set Render's `CLIENT_URL`
+to the same origin and redeploy the backend after changing this setting.
 
 Set the Blueprint's `sync: false` variables in Render's secret store. Do not put
 their values in `render.yaml` or source control. Configure durable storage for
