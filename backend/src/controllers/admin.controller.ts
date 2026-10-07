@@ -43,6 +43,42 @@ export async function getPendingListings(req: Request, res: Response): Promise<v
   }
 }
 
+export async function getAdminListings(req: Request, res: Response): Promise<void> {
+  try {
+    const filters = z.object({
+      status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
+    }).safeParse(req.query);
+    if (!filters.success) {
+      sendError(res, filters.error.errors[0].message, 400);
+      return;
+    }
+
+    const listings = await prisma.listing.findMany({
+      where: filters.data.status ? { approvalStatus: filters.data.status } : {},
+      include: {
+        photos: true,
+        campus: true,
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            isVerified: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    sendSuccess(res, listings);
+  } catch (error) {
+    console.error('getAdminListings error:', error);
+    sendError(res, 'Failed to fetch admin listings', 500);
+  }
+}
+
 export async function approveListing(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
@@ -162,6 +198,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       totalListings,
       pendingListings,
       approvedListings,
+      draftListings,
+      rejectedListings,
       totalCampuses,
     ] = await Promise.all([
       prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -170,6 +208,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       prisma.listing.count(),
       prisma.listing.count({ where: { approvalStatus: 'PENDING' } }),
       prisma.listing.count({ where: { approvalStatus: 'APPROVED' } }),
+      prisma.listing.count({ where: { approvalStatus: 'DRAFT' } }),
+      prisma.listing.count({ where: { approvalStatus: 'REJECTED' } }),
       prisma.campus.count({ where: { isActive: true } }),
     ]);
 
@@ -180,6 +220,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       totalListings,
       pendingListings,
       approvedListings,
+      draftListings,
+      rejectedListings,
       totalCampuses,
     });
   } catch (error) {

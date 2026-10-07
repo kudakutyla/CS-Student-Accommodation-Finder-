@@ -29,9 +29,11 @@ export default function AdminDashboardPage() {
     { label: 'Students', value: stats.totalStudents, href: '/admin/users?role=STUDENT' },
     { label: 'Landlords', value: stats.totalLandlords, href: '/admin/users?role=LANDLORD' },
     { label: 'Verified landlords', value: stats.verifiedLandlords, href: '/admin/users?role=LANDLORD&verified=true' },
-    { label: 'Listings', value: stats.totalListings },
+    { label: 'Listings', value: stats.totalListings, href: '/admin/listings' },
     { label: 'Pending listings', value: stats.pendingListings, href: '/admin/pending-listings' },
-    { label: 'Approved listings', value: stats.approvedListings },
+    { label: 'Approved listings', value: stats.approvedListings, href: '/admin/listings?status=APPROVED' },
+    { label: 'Draft listings', value: stats.draftListings },
+    { label: 'Rejected listings', value: stats.rejectedListings },
     { label: 'Active campuses', value: stats.totalCampuses, href: '/admin/campuses' },
   ];
 

@@ -248,6 +248,12 @@ export const notificationApi = {
 export const adminApi = {
   getPendingListings: () => apiFetch<Listing[]>('/admin/listings/pending'),
 
+  getListings: (status?: Listing['approvalStatus']) => {
+    const query = new URLSearchParams();
+    if (status) query.set('status', status);
+    return apiFetch<Listing[]>(`/admin/listings${query.size ? `?${query}` : ''}`);
+  },
+
   approveListing: (id: string) =>
     apiFetch<Listing>(`/admin/listings/${id}/approve`, {
       method: 'PATCH',
