@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AuthGuard } from '../../../components/auth-guard';
 import { campusApi } from '../../../lib/api';
 import type { Campus, Institution } from '../../../types';
@@ -9,6 +11,7 @@ type CampusFormValues = { institutionId: string; name: string; location: string;
 const emptyCampus: CampusFormValues = { institutionId: '', name: '', location: '', address: '' };
 
 export default function AdminCampusesPage() {
+  const router = useRouter();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [institutionForm, setInstitutionForm] = useState({ name: '', shortName: '' });
@@ -19,6 +22,10 @@ export default function AdminCampusesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [suggestionQuery, setSuggestionQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<Array<{ name: string; country: string; domains: string[] }>>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
 
   async function load() {
     setLoading(true);
@@ -48,18 +55,33 @@ export default function AdminCampusesPage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (suggestionQuery.trim().length < 2) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setLoadingSuggestions(true);
+      setSuggestionError('');
+      campusApi.getInstitutionSuggestions(suggestionQuery.trim()).then((response) => {
+        if (active) setSuggestions(response.data);
+      }).catch((err) => {
+        if (active) setSuggestionError(err instanceof Error ? err.message : 'Unable to load university suggestions.');
+      }).finally(() => {
+        if (active) setLoadingSuggestions(false);
+      });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [suggestionQuery]);
+
   async function saveInstitution(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError('');
     try {
       const payload = { name: institutionForm.name.trim(), shortName: institutionForm.shortName.trim() || null };
-      if (editingInstitutionId) await campusApi.updateInstitution(editingInstitutionId, payload);
-      else await campusApi.createInstitution(payload);
-      setInstitutionForm({ name: '', shortName: '' });
-      setEditingInstitutionId('');
-      setNotice(editingInstitutionId ? 'Institution updated.' : 'Institution created.');
-      await load();
+      const response = editingInstitutionId
+        ? await campusApi.updateInstitution(editingInstitutionId, payload)
+        : await campusApi.createInstitution(payload);
+      router.push(`/admin/institutions/${response.data.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save institution.');
     } finally {
@@ -127,8 +149,16 @@ export default function AdminCampusesPage() {
               <label className="grid gap-1 text-xs font-medium">Short name (optional)<input value={institutionForm.shortName} onChange={(event) => setInstitutionForm((current) => ({ ...current, shortName: event.target.value }))} className="border border-[var(--beige)] px-3 py-2 text-sm" /></label>
               <div className="flex gap-2"><button disabled={saving} className="bg-[var(--charcoal)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : editingInstitutionId ? 'Save institution' : 'Add institution'}</button>{editingInstitutionId ? <button type="button" onClick={() => { setEditingInstitutionId(''); setInstitutionForm({ name: '', shortName: '' }); }} className="border border-[var(--beige)] px-3 py-2 text-sm">Cancel</button> : null}</div>
             </form>
+            {!editingInstitutionId ? <div className="mt-4 border border-[var(--beige)] bg-white p-4">
+              <label className="grid gap-1 text-xs font-medium">Find a university in South Africa
+                <input value={suggestionQuery} onChange={(event) => setSuggestionQuery(event.target.value)} placeholder="Type at least 2 characters" className="border border-[var(--beige)] px-3 py-2 text-sm" />
+              </label>
+              {loadingSuggestions ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">Searching universities...</p> : null}
+              {suggestionError ? <p role="alert" className="mt-2 text-xs text-red-700">{suggestionError}</p> : null}
+              {suggestionQuery.trim().length >= 2 && suggestions.length ? <ul className="mt-2 max-h-52 divide-y divide-[var(--beige)] overflow-y-auto">{suggestions.map((suggestion) => <li key={`${suggestion.name}-${suggestion.domains[0] || ''}`}><button type="button" onClick={() => setInstitutionForm((current) => ({ ...current, name: suggestion.name }))} className="w-full py-2 text-left text-sm hover:bg-[var(--cream)]">{suggestion.name}<span className="ml-2 text-xs text-[var(--text-muted)]">{suggestion.domains[0] || suggestion.country}</span></button></li>)}</ul> : suggestionQuery.trim().length >= 2 && !loadingSuggestions && !suggestionError && suggestions.length === 0 ? <p className="mt-2 text-xs text-[var(--text-muted)]">No matching universities found.</p> : null}
+            </div> : null}
             <div className="mt-4 divide-y divide-[var(--beige)]">
-              {institutions.map((institution) => <article key={institution.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{institution.name} {institution.shortName ? <span className="text-xs font-normal text-[var(--text-muted)]">({institution.shortName})</span> : null}</p><p className="text-xs text-[var(--text-muted)]">{institution.campusCount ?? 0} campuses · {institution.isActive ? 'Active' : 'Inactive'}</p></div><div className="flex gap-2"><button onClick={() => { setEditingInstitutionId(institution.id); setInstitutionForm({ name: institution.name, shortName: institution.shortName || '' }); }} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Edit</button><button onClick={() => void toggleInstitution(institution)} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">{institution.isActive ? 'Deactivate' : 'Activate'}</button></div></article>)}
+              {institutions.map((institution) => <article key={institution.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{institution.name} {institution.shortName ? <span className="text-xs font-normal text-[var(--text-muted)]">({institution.shortName})</span> : null}</p><p className="text-xs text-[var(--text-muted)]">{institution.campusCount ?? 0} campuses · {institution.isActive ? 'Active' : 'Inactive'}</p></div><div className="flex flex-wrap gap-2"><Link href={`/admin/institutions/${institution.id}`} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Manage campuses</Link><button onClick={() => { setEditingInstitutionId(institution.id); setInstitutionForm({ name: institution.name, shortName: institution.shortName || '' }); }} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Edit</button><button onClick={() => void toggleInstitution(institution)} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">{institution.isActive ? 'Deactivate' : 'Activate'}</button></div></article>)}
               {!loading && institutions.length === 0 ? <p className="py-4 text-sm text-[var(--text-muted)]">No institutions have been added.</p> : null}
             </div>
           </div>

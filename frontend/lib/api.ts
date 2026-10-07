@@ -124,6 +124,10 @@ export const authApi = {
 export const campusApi = {
   getInstitutions: () => apiFetch<Institution[]>('/campuses/institutions'),
   getAdminInstitutions: () => apiFetch<Institution[]>('/campuses/institutions/manage'),
+  getInstitutionSuggestions: (search = '') => {
+    const query = new URLSearchParams({ search });
+    return apiFetch<Array<{ name: string; country: string; countryCode: string | null; domains: string[]; webPages: string[] }>>(`/campuses/institutions/suggestions?${query}`);
+  },
   createInstitution: (data: { name: string; shortName?: string | null }) =>
     apiFetch<Institution>('/campuses/institutions', { method: 'POST', body: JSON.stringify(data) }),
   updateInstitution: (id: string, data: Partial<Institution>) =>

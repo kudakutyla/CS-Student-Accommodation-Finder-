@@ -16,7 +16,7 @@ type RoutesResponse = { routes?: Array<{ distanceMeters?: number }> };
 
 function getGoogleMapsKey(): string {
   const key = process.env.GOOGLE_MAPS_API_KEY;
-  if (!key) throw new GoogleMapsError('Google Maps is not configured. Contact the administrator before submitting this listing.', 503);
+  if (!key) throw new GoogleMapsError('Google Maps is not configured. Ask the administrator to add the backend key before creating or updating campus or listing addresses.', 503);
   return key;
 }
 

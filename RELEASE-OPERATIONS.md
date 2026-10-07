@@ -76,8 +76,12 @@ and error-monitoring services during deployment, configure log retention and
 alerting, and document a tested database backup and restore procedure. No
 production deployment has been performed or verified by this repository change.
 
-Google Maps route-distance requests are billable. Enable and restrict the required APIs, store the
-backend-only key in the deployment secret store, and monitor provider usage. Local uploads use a
+Google Maps route-distance requests are billable. Enable the Geocoding API and Routes API, restrict
+the key to the backend deployment, store it as a backend-only deployment secret, and monitor
+provider usage. On Render, add `GOOGLE_MAPS_API_KEY` under the `student-accommodation-backend`
+web service's Environment settings and redeploy the service. Its value must not be stored in
+`render.yaml`, frontend environment variables, or source control. Without this key, campus and
+listing address operations fail explicitly instead of inventing coordinates. Local uploads use a
 filesystem-backed adapter; production must provide durable storage for `UPLOAD_DIR` rather than
 an ephemeral container filesystem.
 

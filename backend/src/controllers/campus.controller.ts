@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import prisma from '../config/prisma';
 import {
   createCampusSchema,
@@ -53,6 +54,51 @@ export async function getAdminInstitutions(_req: Request, res: Response): Promis
   } catch (error) {
     console.error('getAdminInstitutions error:', error);
     sendError(res, 'Failed to fetch institutions', 500);
+  }
+}
+
+export async function getInstitutionSuggestions(req: Request, res: Response): Promise<void> {
+  const query = z.object({
+    search: z.string().trim().min(2).max(100).optional(),
+  }).safeParse(req.query);
+  if (!query.success) {
+    sendError(res, query.error.errors[0].message, 400);
+    return;
+  }
+
+  const url = new URL('https://universities.hipolabs.com/search');
+  url.searchParams.set('country', 'South Africa');
+  if (query.data.search) url.searchParams.set('name', query.data.search);
+
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) {
+      sendError(res, 'The university suggestion service is temporarily unavailable.', 503);
+      return;
+    }
+
+    const result = z.array(z.object({
+      name: z.string().min(1),
+      country: z.string(),
+      alpha_two_code: z.string().nullable().optional(),
+      domains: z.array(z.string()).nullable().optional(),
+      web_pages: z.array(z.string().url()).nullable().optional(),
+    })).safeParse(await response.json());
+    if (!result.success) {
+      sendError(res, 'The university suggestion service returned invalid data.', 502);
+      return;
+    }
+
+    sendSuccess(res, result.data.slice(0, 50).map((institution) => ({
+      name: institution.name,
+      country: institution.country,
+      countryCode: institution.alpha_two_code ?? null,
+      domains: institution.domains ?? [],
+      webPages: institution.web_pages ?? [],
+    })));
+  } catch (error) {
+    console.error('getInstitutionSuggestions error:', error);
+    sendError(res, 'The university suggestion service is temporarily unavailable.', 503);
   }
 }
 
