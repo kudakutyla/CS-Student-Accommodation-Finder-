@@ -57,7 +57,21 @@ The focused `student-workflows.unit.test.ts` suite mocks Prisma and does not con
 
 The backend health endpoint is `GET /api/health`. It confirms the HTTP service is responding; it does not prove database connectivity. Add a separately monitored database readiness check before deployment if the hosting platform needs one, taking care not to expose connection details in responses.
 
-No hosting-provider deployment configuration, centralized logging integration, or error-monitoring provider is currently committed. Select those services during deployment, keep credentials in the provider's secret store, configure log retention and alerting, and document a tested database backup and restore procedure. No production deployment has been performed or verified by this repository change.
+Render deployment configuration is in [`render.yaml`](render.yaml). It builds from
+`backend/`, explicitly installs development dependencies with `npm ci --include=dev`
+then generates Prisma Client before running the TypeScript compiler, and starts
+the compiled service with `npm start`. The type packages and compiler remain in
+`devDependencies`; they are needed at build time, not runtime. A pre-existing
+Render service configured through the dashboard must use the same build command
+(`npm ci --include=dev && npm run prisma:generate && npm run build`) and start
+command (`npm start`), or be configured to use this Blueprint.
+
+Set the Blueprint's `sync: false` variables in Render's secret store. Do not put
+their values in `render.yaml` or source control. Configure durable storage for
+`UPLOAD_DIR` before production use, as described above. Select centralized logging
+and error-monitoring services during deployment, configure log retention and
+alerting, and document a tested database backup and restore procedure. No
+production deployment has been performed or verified by this repository change.
 
 Google Maps route-distance requests are billable. Enable and restrict the required APIs, store the
 backend-only key in the deployment secret store, and monitor provider usage. Local uploads use a
