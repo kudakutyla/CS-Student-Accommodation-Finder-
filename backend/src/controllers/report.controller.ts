@@ -72,7 +72,12 @@ export async function createReport(req: Request, res: Response): Promise<void> {
 export async function getAdminReports(_req: Request, res: Response): Promise<void> {
   try {
     const reports = await prisma.report.findMany({
-      include: {
+      select: {
+        id: true,
+        reason: true,
+        description: true,
+        status: true,
+        createdAt: true,
         listing: { select: { id: true, title: true, approvalStatus: true } },
         user: { select: { id: true, name: true, email: true } },
       },
