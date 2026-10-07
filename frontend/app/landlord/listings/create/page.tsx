@@ -145,10 +145,9 @@ export default function CreateListingPage() {
             <div>
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
               <select required value={form.institutionId} onChange={(event) => setForm((previous) => ({ ...previous, institutionId: event.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]">
-                <option value="">{institutions.length ? 'Select an institution' : 'No institutions available'}</option>
+                <option value="">Select an institution</option>
                 {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
               </select>
-              {institutions.length === 0 ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">An administrator must add institutions before properties can be linked to a campus.</p> : null}
             </div>
 
             <div>

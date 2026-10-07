@@ -73,11 +73,10 @@ export default function Home() {
               <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
                 Institution
                 <select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)]">
-                  <option value="">{institutions.length ? 'Select an institution...' : 'No institutions available'}</option>
+                  <option value="">Select an institution...</option>
                   {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
                 </select>
               </label>
-              {institutions.length === 0 ? <p role="status" className="text-xs text-[var(--text-muted)]">An administrator must add institutions before students can search by campus.</p> : null}
               <label className="grid gap-1.5 text-xs font-medium text-[var(--text-muted)]">
                 Campus
                 <select value={campusId} onChange={(event) => setCampusId(event.target.value)} disabled={!institutionId} className="min-h-12 w-full rounded-md border border-[var(--beige)] bg-white px-3 text-sm text-[var(--charcoal)] outline-none focus:border-[var(--accent-terracotta)] disabled:opacity-60">

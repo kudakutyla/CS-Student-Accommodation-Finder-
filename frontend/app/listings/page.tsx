@@ -104,10 +104,9 @@ function ListingsPageContent() {
             <div>
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
               <select value={filters.institutionId} onChange={(e) => setFilters((prev) => ({ ...prev, institutionId: e.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm text-[var(--charcoal)] outline-none">
-                <option value="">{institutions.length ? 'All institutions' : 'No institutions available'}</option>
+                <option value="">All institutions</option>
                 {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
               </select>
-              {institutions.length === 0 ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">An administrator must add institutions before campus filtering is available.</p> : null}
             </div>
 
             <div>

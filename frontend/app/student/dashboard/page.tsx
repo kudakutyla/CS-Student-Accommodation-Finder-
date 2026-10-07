@@ -52,7 +52,7 @@ export default function StudentDashboardPage() {
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <label className="flex-1"><span className="sr-only">Institution</span><select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)]"><option value="">{institutions.length ? 'All institutions' : 'No institutions available'}</option>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select></label>
+                <label className="flex-1"><span className="sr-only">Institution</span><select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)]"><option value="">All institutions</option>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select></label>
                 <label className="flex-1"><span className="sr-only">Campus</span><select value={campusId} onChange={(event) => setCampusId(event.target.value)} disabled={!institutionId} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)] disabled:opacity-60"><option value="">{institutionId ? 'All campuses' : 'Choose an institution first'}</option>{campuses.filter((campus) => campus.institutionId === institutionId).map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select></label>
                 <Link
                   href={discoveryTarget()}
@@ -61,7 +61,6 @@ export default function StudentDashboardPage() {
                   Search homes
                 </Link>
               </div>
-              {institutions.length === 0 ? <p role="status" className="mt-3 text-xs text-[var(--text-muted)]">An administrator must add institutions before campus search is available.</p> : null}
 
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-[var(--charcoal)]">
                 <span className="rounded-full bg-[var(--beige)] px-3 py-2 font-medium">Verified listings</span>
