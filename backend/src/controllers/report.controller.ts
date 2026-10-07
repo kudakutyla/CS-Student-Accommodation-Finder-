@@ -120,7 +120,7 @@ export async function updateReportStatus(req: Request, res: Response): Promise<v
     const updated = await prisma.$transaction(async (tx) => {
       const savedReport = await tx.report.update({
         where: { id: report.id },
-        data: { status: parsed.data.status, adminReviewNote: parsed.data.adminReviewNote || null },
+        data: { status: parsed.data.status },
       });
       await tx.auditLog.create({
         data: {
@@ -128,7 +128,10 @@ export async function updateReportStatus(req: Request, res: Response): Promise<v
           action: 'UPDATE_REPORT_STATUS',
           targetType: 'REPORT',
           targetId: report.id,
-          description: `Report for listing "${report.listing.title}" changed from ${report.status} to ${parsed.data.status}.`,
+          description: [
+            `Report for listing "${report.listing.title}" changed from ${report.status} to ${parsed.data.status}.`,
+            parsed.data.adminReviewNote ? `Admin note: ${parsed.data.adminReviewNote}` : '',
+          ].filter(Boolean).join(' '),
         },
       });
       await tx.notification.create({

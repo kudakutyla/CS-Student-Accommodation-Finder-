@@ -6,7 +6,7 @@ jest.mock('../src/config/prisma', () => ({
 }));
 
 import prisma from '../src/config/prisma';
-import { getAdminReports } from '../src/controllers/report.controller';
+import { getAdminReports, updateReportStatus } from '../src/controllers/report.controller';
 
 const findMany = prisma.report.findMany as jest.MockedFunction<typeof prisma.report.findMany>;
 
@@ -52,5 +52,45 @@ describe('admin report retrieval', () => {
       message: 'Failed to fetch reports',
     });
     expect(error).toHaveBeenCalledWith('getAdminReports error:', expect.any(Error));
+  });
+
+  it('updates status without writing the optional review-note column', async () => {
+    const reportUpdate = jest.fn().mockResolvedValue({ id: 'report-1', status: 'RESOLVED' });
+    const auditCreate = jest.fn().mockResolvedValue({});
+    const notificationCreate = jest.fn().mockResolvedValue({});
+    const transaction = {
+      report: { update: reportUpdate },
+      auditLog: { create: auditCreate },
+      notification: { create: notificationCreate },
+    };
+    prisma.report.findUnique = jest.fn().mockResolvedValue({
+      id: 'report-1',
+      userId: 'reporter-1',
+      status: 'IN_REVIEW',
+      listing: { title: 'Campus House' },
+    }) as typeof prisma.report.findUnique;
+    prisma.$transaction = jest.fn().mockImplementation((callback) => callback(transaction)) as typeof prisma.$transaction;
+    const response = responseMock();
+
+    await updateReportStatus({
+      params: { id: 'report-1' },
+      body: { status: 'RESOLVED', adminReviewNote: 'We checked the concern.' },
+      user: { id: 'admin-1', role: 'ADMIN' },
+    } as unknown as Request, response);
+
+    expect(reportUpdate).toHaveBeenCalledWith({
+      where: { id: 'report-1' },
+      data: { status: 'RESOLVED' },
+    });
+    expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ description: expect.stringContaining('We checked the concern.') }),
+    }));
+    expect(notificationCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        userId: 'reporter-1',
+        message: expect.stringContaining('We checked the concern.'),
+      }),
+    }));
+    expect(response.status).toHaveBeenCalledWith(200);
   });
 });
