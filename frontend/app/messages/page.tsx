@@ -88,17 +88,17 @@ function MessagesContent() {
           <section className="flex min-h-[60vh] flex-col">
             {selectedId ? <>
               <div className="border-b border-[var(--beige)] p-4"><p className="font-semibold text-[var(--charcoal)]">{(conversations ?? []).find((item) => item.id === selectedId)?.listing.title ?? 'Conversation'}</p></div>
-              <div aria-live="polite" className="flex-1 space-y-3 overflow-y-auto p-4">
+              <div aria-live="polite" className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
                 {messages.map((message) => (
-                  <div key={message.id} className={`max-w-[85%] ${message.senderId === user?.id ? 'ml-auto' : ''}`}>
+                  <div key={message.id} className={`flex max-w-[85%] flex-col ${message.senderId === user?.id ? 'self-end' : 'self-start'}`}>
                     {message.content ? <p className={`whitespace-pre-wrap px-3 py-2 text-sm ${message.senderId === user?.id ? 'bg-[var(--charcoal)] text-white' : 'bg-[var(--cream)] text-[var(--charcoal)]'}`}>{message.content}</p> : null}
                     {message.attachmentUrl ? (
-                      <a href="#attachment" onClick={async (event) => { event.preventDefault(); try { const blob = await fetchMedia(message.attachmentUrl!); const objectUrl = URL.createObjectURL(blob); const downloadLink = document.createElement('a'); downloadLink.href = objectUrl; downloadLink.download = message.attachmentName || 'attachment'; downloadLink.click(); URL.revokeObjectURL(objectUrl); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to download attachment.'); } }} className={`mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-[var(--beige)] bg-white px-3 py-2 text-sm ${message.senderId === user?.id ? 'text-white' : 'text-[var(--charcoal)]'}`}>
+                      <a href="#attachment" onClick={async (event) => { event.preventDefault(); try { const blob = await fetchMedia(message.attachmentUrl!); const objectUrl = URL.createObjectURL(blob); const downloadLink = document.createElement('a'); downloadLink.href = objectUrl; downloadLink.download = message.attachmentName || 'attachment'; downloadLink.click(); URL.revokeObjectURL(objectUrl); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to download attachment.'); } }} className={`mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-[var(--beige)] px-3 py-2 text-sm ${message.senderId === user?.id ? 'border-[#181311] bg-[#201a18] text-white' : 'bg-white text-[var(--charcoal)]'}`}>
                         <span className="truncate">{message.attachmentName || 'Download attachment'}</span>
-                        <span className="rounded bg-[var(--cream)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em]">{message.attachmentType || 'FILE'}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] ${message.senderId === user?.id ? 'bg-white/20' : 'bg-[var(--cream)]'}`}>{message.attachmentType || 'FILE'}</span>
                       </a>
                     ) : null}
-                    <time className="mt-1 block text-[10px] opacity-70">{new Date(message.createdAt).toLocaleString()}</time>
+                    <time className={`mt-1 block text-[10px] opacity-70 ${message.senderId === user?.id ? 'text-right' : 'text-left'}`}>{new Date(message.createdAt).toLocaleString()}</time>
                   </div>
                 ))}
               </div>

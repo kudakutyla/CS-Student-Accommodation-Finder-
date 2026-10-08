@@ -20,7 +20,7 @@ function ListingsPageContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const currentQuery = searchParams.toString();
   const returnPath = `${pathname}${currentQuery ? `?${currentQuery}` : ''}`;
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -92,8 +92,9 @@ function ListingsPageContent() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6 rounded-[28px] border border-[var(--beige)] bg-[var(--warm-white)] p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Search</p>
-        <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Find your perfect student home</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">{user?.role === 'LANDLORD' ? 'Market overview' : 'Search'}</p>
+        <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">{user?.role === 'LANDLORD' ? 'Explore the student accommodation market' : 'Find your perfect student home'}</h1>
+        {user?.role === 'LANDLORD' ? <p className="mt-3 text-sm text-[var(--text-muted)]">Compare approved student accommodation near campus and see how your properties fit the local market.</p> : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">

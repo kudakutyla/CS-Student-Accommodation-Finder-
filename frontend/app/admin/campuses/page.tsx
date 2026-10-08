@@ -26,6 +26,7 @@ export default function AdminCampusesPage() {
   const [suggestions, setSuggestions] = useState<Array<{ name: string; country: string; domains: string[] }>>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
+  const [suggestionRetryKey, setSuggestionRetryKey] = useState(0);
 
   async function load() {
     setLoading(true);
@@ -56,12 +57,11 @@ export default function AdminCampusesPage() {
   }, []);
 
   useEffect(() => {
-    if (suggestionQuery.trim().length < 2) return;
     let active = true;
+    const search = suggestionQuery.trim();
+    if (search.length < 2) return;
     const timer = window.setTimeout(() => {
-      setLoadingSuggestions(true);
-      setSuggestionError('');
-      campusApi.getInstitutionSuggestions(suggestionQuery.trim()).then((response) => {
+      campusApi.getInstitutionSuggestions(search).then((response) => {
         if (active) setSuggestions(response.data);
       }).catch((err) => {
         if (active) setSuggestionError(err instanceof Error ? err.message : 'Unable to load university suggestions.');
@@ -70,7 +70,7 @@ export default function AdminCampusesPage() {
       });
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [suggestionQuery]);
+  }, [suggestionQuery, suggestionRetryKey]);
 
   async function saveInstitution(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -151,10 +151,10 @@ export default function AdminCampusesPage() {
             </form>
             {!editingInstitutionId ? <div className="mt-4 border border-[var(--beige)] bg-white p-4">
               <label className="grid gap-1 text-xs font-medium">Find a university in South Africa
-                <input value={suggestionQuery} onChange={(event) => setSuggestionQuery(event.target.value)} placeholder="Type at least 2 characters" className="border border-[var(--beige)] px-3 py-2 text-sm" />
+                <input value={suggestionQuery} onChange={(event) => { const value = event.target.value; setSuggestionQuery(value); setSuggestions([]); setSuggestionError(''); setLoadingSuggestions(value.trim().length >= 2); }} placeholder="Type at least 2 characters" className="border border-[var(--beige)] px-3 py-2 text-sm" />
               </label>
               {loadingSuggestions ? <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">Searching universities...</p> : null}
-              {suggestionError ? <p role="alert" className="mt-2 text-xs text-red-700">{suggestionError}</p> : null}
+              {suggestionError ? <div className="mt-2 flex items-start justify-between gap-3"><p role="alert" className="text-xs text-red-700">{suggestionError}</p><button type="button" onClick={() => { setSuggestionError(''); setLoadingSuggestions(true); setSuggestionRetryKey((value) => value + 1); }} className="shrink-0 text-xs font-semibold underline">Retry</button></div> : null}
               {suggestionQuery.trim().length >= 2 && suggestions.length ? <ul className="mt-2 max-h-52 divide-y divide-[var(--beige)] overflow-y-auto">{suggestions.map((suggestion) => <li key={`${suggestion.name}-${suggestion.domains[0] || ''}`}><button type="button" onClick={() => setInstitutionForm((current) => ({ ...current, name: suggestion.name }))} className="w-full py-2 text-left text-sm hover:bg-[var(--cream)]">{suggestion.name}<span className="ml-2 text-xs text-[var(--text-muted)]">{suggestion.domains[0] || suggestion.country}</span></button></li>)}</ul> : suggestionQuery.trim().length >= 2 && !loadingSuggestions && !suggestionError && suggestions.length === 0 ? <p className="mt-2 text-xs text-[var(--text-muted)]">No matching universities found.</p> : null}
             </div> : null}
             <div className="mt-4 divide-y divide-[var(--beige)]">

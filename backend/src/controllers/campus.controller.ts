@@ -66,40 +66,66 @@ export async function getInstitutionSuggestions(req: Request, res: Response): Pr
     return;
   }
 
-  const url = new URL('https://universities.hipolabs.com/search');
-  url.searchParams.set('country', 'South Africa');
-  if (query.data.search) url.searchParams.set('name', query.data.search);
+  const url = new URL('https://api.openalex.org/institutions');
+  url.searchParams.set('filter', 'country_code:ZA,type:education');
+  url.searchParams.set('per-page', '100');
+  url.searchParams.set('select', 'display_name,country_code,type,homepage_url');
 
+  let response: globalThis.Response;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) {
-      sendError(res, 'The university suggestion service is temporarily unavailable.', 503);
-      return;
-    }
-
-    const result = z.array(z.object({
-      name: z.string().min(1),
-      country: z.string(),
-      alpha_two_code: z.string().nullable().optional(),
-      domains: z.array(z.string()).nullable().optional(),
-      web_pages: z.array(z.string().url()).nullable().optional(),
-    })).safeParse(await response.json());
-    if (!result.success) {
-      sendError(res, 'The university suggestion service returned invalid data.', 502);
-      return;
-    }
-
-    sendSuccess(res, result.data.slice(0, 50).map((institution) => ({
-      name: institution.name,
-      country: institution.country,
-      countryCode: institution.alpha_two_code ?? null,
-      domains: institution.domains ?? [],
-      webPages: institution.web_pages ?? [],
-    })));
+    response = await fetch(url, { signal: AbortSignal.timeout(8000) });
   } catch (error) {
-    console.error('getInstitutionSuggestions error:', error);
+    console.error('getInstitutionSuggestions request failed:', error);
     sendError(res, 'The university suggestion service is temporarily unavailable.', 503);
+    return;
   }
+
+  if (!response.ok) {
+    console.error(
+      `getInstitutionSuggestions upstream responded with ${response.status} ${response.statusText}`
+    );
+    sendError(res, 'The university suggestion service is temporarily unavailable.', 503);
+    return;
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    console.error('getInstitutionSuggestions returned invalid JSON:', error);
+    sendError(res, 'The university suggestion service returned invalid data.', 502);
+    return;
+  }
+
+  const result = z.object({
+    results: z.array(z.object({
+      display_name: z.string().trim().min(1),
+      country_code: z.literal('ZA'),
+      type: z.literal('education'),
+      homepage_url: z.string().url().nullable().optional(),
+    })),
+  }).safeParse(payload);
+  if (!result.success) {
+    sendError(res, 'The university suggestion service returned invalid data.', 502);
+    return;
+  }
+
+  const search = query.data.search?.toLowerCase();
+  const matches = result.data.results.filter((institution) =>
+    !search || institution.display_name.toLowerCase().includes(search)
+  );
+
+  sendSuccess(res, matches.slice(0, 50).map((institution) => {
+    const homepage = institution.homepage_url ?? null;
+    const domain = homepage ? new URL(homepage).hostname : null;
+    return {
+      name: institution.display_name,
+      country: 'South Africa',
+      countryCode: institution.country_code,
+      domains: domain ? [domain] : [],
+      webPages: homepage ? [homepage] : [],
+    };
+  }));
 }
 
 export async function createInstitution(req: Request, res: Response): Promise<void> {

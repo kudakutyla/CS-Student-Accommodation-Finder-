@@ -15,6 +15,9 @@ Backend variables:
 - `NODE_ENV`: set to `production` in the deployed backend.
 - `GOOGLE_MAPS_API_KEY`: private backend key with only the required Geocoding and Routes API
 	permissions; restrict it to the server environment and never use a `NEXT_PUBLIC_` variable.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`:
+	private SMTP transport and sender settings used for password reset email. Do not put
+	these values in source control or browser environment variables.
 - `UPLOAD_DIR`: optional private upload path. The default is `backend/uploads`, which is ignored
 	by Git; production deployments must mount durable storage at this path.
 
@@ -76,14 +79,24 @@ and error-monitoring services during deployment, configure log retention and
 alerting, and document a tested database backup and restore procedure. No
 production deployment has been performed or verified by this repository change.
 
-Google Maps route-distance requests are billable. Enable the Geocoding API and Routes API, restrict
-the key to the backend deployment, store it as a backend-only deployment secret, and monitor
-provider usage. On Render, add `GOOGLE_MAPS_API_KEY` under the `student-accommodation-backend`
-web service's Environment settings and redeploy the service. Its value must not be stored in
-`render.yaml`, frontend environment variables, or source control. Without this key, campus and
-listing address operations fail explicitly instead of inventing coordinates. Local uploads use a
+Google Maps route-distance requests are billable. Enable and restrict the required APIs, store the
+backend-only key in the deployment secret store, and monitor provider usage. Local uploads use a
 filesystem-backed adapter; production must provide durable storage for `UPLOAD_DIR` rather than
 an ephemeral container filesystem.
+
+Campus creation and property listing submission require `GOOGLE_MAPS_API_KEY` to be configured
+in the backend environment. Enable the Geocoding API and Routes API for the key, restrict it to
+the backend deployment, and configure it in each local/deployment secret store. Without this key,
+the API must reject address operations clearly rather than inventing or falling back to coordinates.
+On Render, add the key under the `student-accommodation-backend` web service's Environment
+settings, then redeploy the service. The value is intentionally not stored in `render.yaml`,
+frontend environment variables, or source control.
+
+Forgot-password mail uses the SMTP variables above and `CLIENT_URL` to build reset links.
+Configure a verified sender and a backend-only SMTP credential for every environment. Password
+reset requests return the same public response for known and unknown email addresses; check backend
+operational logs and SMTP provider delivery logs when an expected email is not received. Reset
+tokens are short-lived and must never be logged or shared.
 
 ## Seed Policy
 

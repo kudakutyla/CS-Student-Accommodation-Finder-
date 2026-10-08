@@ -10,7 +10,7 @@ import type { Listing } from '../../../types';
 export default function LandlordDashboardPage() {
   const { user } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
-  const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, availableRooms: 0 });
+  const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, availableRooms: 0, availableRoomsByType: {} as Record<string, number> });
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -23,6 +23,7 @@ export default function LandlordDashboardPage() {
         pending: listingRes.data.stats?.pending || 0,
         rejected: listingRes.data.stats?.rejected || 0,
         availableRooms: listingRes.data.stats?.availableRooms || 0,
+        availableRoomsByType: listingRes.data.stats?.availableRoomsByType || {},
       });
     }
     load().catch(() => setError('We could not load your property workspace. Please refresh and try again.'));
@@ -61,6 +62,15 @@ export default function LandlordDashboardPage() {
             </div>
           ))}
         </div>
+
+        <section className="mt-8 rounded-[28px] border border-[var(--beige)] bg-white p-6 shadow-sm sm:p-8" aria-labelledby="room-statistics-heading">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Inventory</p>
+          <h2 id="room-statistics-heading" className="mt-2 font-serif text-2xl text-[var(--charcoal)]">Available rooms by type</h2>
+          {Object.keys(stats.availableRoomsByType).length ? <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(stats.availableRoomsByType).map(([type, count]) => {
+            const label = type === 'ROOM' ? 'Single room' : type === 'SHARED_ROOM' ? 'Shared room' : type.replaceAll('_', ' ').toLowerCase();
+            return <div key={type} className="border-b border-[var(--beige)] pb-3"><p className="text-sm capitalize text-[var(--text-muted)]">{label}</p><p className="mt-1 font-serif text-2xl text-[var(--charcoal)]">{count}</p></div>;
+          })}</div> : <p className="mt-3 text-sm text-[var(--text-muted)]">No available rooms yet.</p>}
+        </section>
 
         {!user?.isVerified ? (
           <div className="mt-8 rounded-[24px] border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">

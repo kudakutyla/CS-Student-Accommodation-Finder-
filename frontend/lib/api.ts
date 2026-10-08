@@ -88,6 +88,18 @@ export const authApi = {
       body: JSON.stringify(credentials),
     }),
 
+  forgotPassword: (email: string) =>
+    apiFetch<null>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    apiFetch<null>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+
   uploadProfilePicture: (file: File) => {
     const body = new FormData();
     body.append('picture', file);
@@ -96,6 +108,12 @@ export const authApi = {
       body,
     });
   },
+
+  updateProfile: (data: { name: string; email: string; phone: string | null }) =>
+    apiFetch<{ user: User }>('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 
   register: (data: {
     name: string;
@@ -185,7 +203,19 @@ export const listingApi = {
   getListingById: (id: string) => apiFetch<Listing>(`/listings/${id}`),
 
   getMyListings: () =>
-    apiFetch<{ items: Listing[]; stats: Record<string, number> }>('/listings/my'),
+    apiFetch<{
+      items: Listing[];
+      stats: {
+        total: number;
+        approved: number;
+        pending: number;
+        rejected: number;
+        draft: number;
+        totalRooms: number;
+        availableRooms: number;
+        availableRoomsByType: Record<string, number>;
+      };
+    }>('/listings/my'),
 
   createListing: (body: FormData) =>
     apiFetch<Listing>('/listings', {
@@ -251,7 +281,6 @@ export const notificationApi = {
 // Admin API
 export const adminApi = {
   getPendingListings: () => apiFetch<Listing[]>('/admin/listings/pending'),
-
   getListings: (status?: Listing['approvalStatus']) => {
     const query = new URLSearchParams();
     if (status) query.set('status', status);

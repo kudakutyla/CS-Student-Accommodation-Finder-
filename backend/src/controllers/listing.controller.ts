@@ -174,6 +174,11 @@ export async function getMyListings(req: Request, res: Response): Promise<void> 
       draft: listings.filter((l) => l.approvalStatus === 'DRAFT').length,
       totalRooms: listings.reduce((sum, l) => sum + l.totalRooms, 0),
       availableRooms: listings.reduce((sum, l) => sum + l.availableRooms, 0),
+      availableRoomsByType: listings.reduce<Record<string, number>>((counts, listing) => {
+        const accommodationType = listing.accommodationType;
+        counts[accommodationType] = (counts[accommodationType] ?? 0) + listing.availableRooms;
+        return counts;
+      }, {}),
     };
 
     sendSuccess(res, { items: formatted, stats });

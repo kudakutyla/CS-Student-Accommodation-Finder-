@@ -53,16 +53,27 @@ function getRouteRole(pathname: string, signedInRole?: UserRole): UserRole | nul
   if (pathname.startsWith('/student')) return 'STUDENT';
   if (pathname.startsWith('/landlord')) return 'LANDLORD';
   if (pathname.startsWith('/admin')) return 'ADMIN';
-  if ((pathname.startsWith('/messages') || pathname.startsWith('/notifications')) && signedInRole) return signedInRole;
-  return null;
+  if (
+    (pathname.startsWith('/listings') ||
+      pathname.startsWith('/messages') ||
+      pathname.startsWith('/notifications')) &&
+    signedInRole
+  ) {
+    return signedInRole;
+  }
+  return signedInRole ?? null;
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const role = getRouteRole(pathname, user?.role);
+
+  if (isLoading) {
+    return <main className="flex-1">{children}</main>;
+  }
 
   if (!role || !isAuthenticated || !user) {
     return <><Navbar /><main className="flex-1">{children}</main></>;
@@ -77,9 +88,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--cream)] lg:flex">
-      <aside className={`relative z-20 flex w-full flex-col border-b lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r ${isAdmin ? 'border-[#51443e] bg-[var(--charcoal)] text-[var(--warm-white)]' : 'border-[var(--beige)] bg-[var(--warm-white)] text-[var(--charcoal)]'}`}>
-        <div className="flex items-center justify-between px-4 py-3 lg:block lg:px-6 lg:py-6">
+    <div className="min-h-screen bg-[var(--cream)] md:flex">
+      <aside className={`relative z-20 flex w-full flex-col border-b md:sticky md:top-0 md:h-screen md:w-64 md:shrink-0 md:border-b-0 md:border-r ${isAdmin ? 'border-[#51443e] bg-[var(--charcoal)] text-[var(--warm-white)]' : 'border-[var(--beige)] bg-[var(--warm-white)] text-[var(--charcoal)]'}`}>
+        <div className="flex items-center justify-between px-4 py-3 md:block md:px-6 md:py-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -87,7 +98,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               aria-expanded={menuOpen}
               aria-controls="portal-navigation"
               onClick={() => setMenuOpen((open) => !open)}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-md lg:hidden ${isAdmin ? 'text-white hover:bg-white/10' : 'text-[var(--charcoal)] hover:bg-[var(--cream)]'}`}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-md md:hidden ${isAdmin ? 'text-white hover:bg-white/10' : 'text-[var(--charcoal)] hover:bg-[var(--cream)]'}`}
             >
               {menuOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
             </button>
@@ -99,19 +110,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {role === 'LANDLORD' && user.isVerified ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Verified provider</span> : null}
         </div>
 
-        {menuOpen ? <button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" /> : null}
-        <div id="portal-navigation" className={`${menuOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'} fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r shadow-xl transition-transform duration-300 ease-out lg:visible lg:static lg:z-auto lg:h-auto lg:w-auto lg:translate-x-0 lg:border-r-0 lg:shadow-none lg:transition-none ${isAdmin ? 'border-[#51443e] bg-[var(--charcoal)] text-[var(--warm-white)]' : 'border-[var(--beige)] bg-[var(--warm-white)] text-[var(--charcoal)]'}`}>
-          <div className="flex items-center justify-between border-b border-[var(--beige)] px-5 py-4 lg:hidden">
+        {menuOpen ? <button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/40 md:hidden" /> : null}
+        <div id="portal-navigation" className={`${menuOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'} fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r shadow-xl transition-transform duration-300 ease-out md:visible md:static md:z-auto md:h-auto md:w-auto md:translate-x-0 md:border-r-0 md:shadow-none md:transition-none ${isAdmin ? 'border-[#51443e] bg-[var(--charcoal)] text-[var(--warm-white)]' : 'border-[var(--beige)] bg-[var(--warm-white)] text-[var(--charcoal)]'}`}>
+          <div className="flex items-center justify-between border-b border-[var(--beige)] px-5 py-4 md:hidden">
             <div>
               <Link href={details.links[0].href} onClick={() => setMenuOpen(false)} className="font-serif text-xl font-semibold">Abode</Link>
               <p className={`mt-0.5 text-xs ${isAdmin ? 'text-white/60' : 'text-[var(--text-muted)]'}`}>{details.subtitle}</p>
             </div>
             <button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className={`inline-flex h-10 w-10 items-center justify-center rounded-md ${isAdmin ? 'text-white hover:bg-white/10' : 'text-[var(--charcoal)] hover:bg-[var(--cream)]'}`}><X size={20} aria-hidden="true" /></button>
           </div>
-          <nav aria-label={`${details.subtitle} navigation`} className="flex flex-col gap-1 px-3 pb-3 lg:space-y-1 lg:px-3">
+          <nav aria-label={`${details.subtitle} navigation`} className="flex flex-col gap-1 px-3 pb-3 md:space-y-1 md:px-3">
             {details.links.map(({ label, href, icon: Icon }) => {
               const targetPath = href.split('#')[0];
-              const active = pathname === targetPath && !href.includes('#');
+              const active =
+                (pathname === targetPath ||
+                  (targetPath === '/listings' && pathname.startsWith('/listings/'))) &&
+                !href.includes('#');
               return (
                 <Link
                   key={label}
@@ -127,7 +141,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className={`flex items-center justify-between gap-3 border-t px-4 py-3 lg:mt-auto lg:px-5 ${isAdmin ? 'border-[#51443e]' : 'border-[var(--beige)]'}`}>
+          <div className={`flex items-center justify-between gap-3 border-t px-4 py-3 md:mt-auto md:px-5 ${isAdmin ? 'border-[#51443e]' : 'border-[var(--beige)]'}`}>
             <div className="flex min-w-0 items-center gap-3">
             {user.profilePicture ? (
               <Image src={getMediaUrl(user.profilePicture)} alt={user.name} width={36} height={36} unoptimized className="h-9 w-9 rounded-full object-cover ring-2 ring-white/60" />
