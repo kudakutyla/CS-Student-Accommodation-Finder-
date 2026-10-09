@@ -20,6 +20,7 @@ const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const conversation_routes_1 = __importDefault(require("./routes/conversation.routes"));
 const notification_routes_1 = __importDefault(require("./routes/notification.routes"));
 const admin_report_routes_1 = __importDefault(require("./routes/admin.report.routes"));
+const report_routes_1 = __importDefault(require("./routes/report.routes"));
 const media_routes_1 = __importDefault(require("./routes/media.routes"));
 const response_1 = require("./utils/response");
 exports.app = (0, express_1.default)();
@@ -27,7 +28,12 @@ exports.app = (0, express_1.default)();
 exports.app.use((0, helmet_1.default)());
 const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
 exports.app.use((0, cors_1.default)({
-    origin: [clientUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: [
+        clientUrl,
+        'https://cs-student-accommodation-finder.vercel.app',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ],
     credentials: true,
 }));
 // Rate limiting
@@ -60,6 +66,7 @@ exports.app.get('/', (_req, res) => {
 exports.app.use('/api/auth', auth_routes_1.default);
 exports.app.use('/api/campuses', campus_routes_1.default);
 exports.app.use('/api/listings', listing_routes_1.default);
+exports.app.use('/api/reports', report_routes_1.default);
 exports.app.use('/api/users', user_routes_1.default);
 exports.app.use('/api/conversations', conversation_routes_1.default);
 exports.app.use('/api/notifications', notification_routes_1.default);

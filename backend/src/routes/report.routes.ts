@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { createReport } from '../controllers/report.controller';
+import { getMyReports } from '../controllers/report.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.post('/listings/:id/reports', authenticate, authorize('STUDENT'), createReport);
+router.get('/mine', authenticate, authorize('STUDENT'), getMyReports);
 
 export default router;

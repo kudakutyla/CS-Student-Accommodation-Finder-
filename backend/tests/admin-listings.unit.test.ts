@@ -22,41 +22,48 @@ function responseMock() {
   return response as unknown as Response & typeof response;
 }
 
-function requestMock(query: Record<string, string>) {
-  return { query } as unknown as Request;
-}
-
 describe('admin listing directory', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('returns all listings when no status filter is provided', async () => {
-    listingFindMany.mockResolvedValue([]);
+  it.each([
+    [undefined, {}],
+    ['ALL', {}],
+    ['PENDING', { approvalStatus: 'PENDING' }],
+    ['APPROVED', { approvalStatus: 'APPROVED' }],
+    ['DRAFT', { approvalStatus: 'DRAFT' }],
+    ['REJECTED', { approvalStatus: 'REJECTED' }],
+  ])('returns listings filtered by status %s', async (status, where) => {
+    const listings = [{ id: 'listing-1', title: 'Campus home', approvalStatus: status || 'PENDING' }];
+    listingFindMany.mockResolvedValue(listings as never);
     const response = responseMock();
 
-    await getAdminListings(requestMock({}), response);
-
-    expect(listingFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
-    expect(response.status).toHaveBeenCalledWith(200);
-  });
-
-  it('filters listings by approval status', async () => {
-    listingFindMany.mockResolvedValue([]);
-    const response = responseMock();
-
-    await getAdminListings(requestMock({ status: 'APPROVED' }), response);
+    await getAdminListings({ query: status ? { status } : {} } as unknown as Request, response);
 
     expect(listingFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { approvalStatus: 'APPROVED' },
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: expect.objectContaining({ photos: true, campus: true }),
     }));
+    expect((response.json as jest.Mock).mock.calls[0][0].data).toEqual(listings);
   });
 
-  it('rejects invalid statuses before querying', async () => {
+  it('rejects an invalid status without querying Prisma', async () => {
     const response = responseMock();
 
-    await getAdminListings(requestMock({ status: 'LIVE' }), response);
+    await getAdminListings({ query: { status: 'LIVE' } } as unknown as Request, response);
 
-    expect(listingFindMany).not.toHaveBeenCalled();
     expect(response.status).toHaveBeenCalledWith(400);
+    expect(listingFindMany).not.toHaveBeenCalled();
+  });
+
+  it('returns an explicit API error when the query fails', async () => {
+    listingFindMany.mockRejectedValue(new Error('database unavailable'));
+    const response = responseMock();
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await getAdminListings({ query: { status: 'ALL' } } as unknown as Request, response);
+
+    expect(response.status).toHaveBeenCalledWith(500);
   });
 
   it('reports counts for every listing status so totals reconcile', async () => {

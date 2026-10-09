@@ -29,6 +29,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <AppShell>{children}</AppShell>
         </AuthProvider>
+        <footer className="border-t border-[var(--beige)] px-4 py-3 text-center text-xs text-[var(--text-muted)]">
+          Geographic data ©{' '}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            OpenStreetMap contributors
+          </a>
+          {' · Routing by OSRM'}
+        </footer>
       </body>
     </html>
   );

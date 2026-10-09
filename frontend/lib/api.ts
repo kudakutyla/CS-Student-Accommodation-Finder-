@@ -2,6 +2,7 @@ import {
   ApiResponse,
   AppNotification,
   Campus,
+  CampusSuggestion,
   Conversation,
   Favourite,
   Institution,
@@ -10,6 +11,7 @@ import {
   Message,
   Pagination,
   Review,
+  StudentReport,
   User,
 } from '../types';
 
@@ -159,6 +161,10 @@ export const campusApi = {
   },
 
   getCampusById: (id: string) => apiFetch<Campus>(`/campuses/${id}`),
+  getCampusSuggestions: (institutionId: string) => {
+    const query = new URLSearchParams({ institutionId });
+    return apiFetch<CampusSuggestion[]>(`/campuses/suggestions?${query}`);
+  },
 
   createCampus: (data: {
     name: string;
@@ -252,6 +258,7 @@ export const reviewApi = {
 export const reportApi = {
   create: (listingId: string, data: { reason: string; description: string }) =>
     apiFetch<ListingReport>(`/listings/${listingId}/reports`, { method: 'POST', body: JSON.stringify(data) }),
+  mine: () => apiFetch<StudentReport[]>('/reports/mine'),
 };
 
 export const conversationApi = {
@@ -281,9 +288,9 @@ export const notificationApi = {
 // Admin API
 export const adminApi = {
   getPendingListings: () => apiFetch<Listing[]>('/admin/listings/pending'),
-  getListings: (status?: Listing['approvalStatus']) => {
+  getListings: (status?: Listing['approvalStatus'] | 'ALL') => {
     const query = new URLSearchParams();
-    if (status) query.set('status', status);
+    if (status && status !== 'ALL') query.set('status', status);
     return apiFetch<Listing[]>(`/admin/listings${query.size ? `?${query}` : ''}`);
   },
 

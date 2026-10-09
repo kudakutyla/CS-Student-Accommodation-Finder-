@@ -53,7 +53,10 @@ async function createListing(req, res) {
         }
         for (const file of uploadedFiles)
             storedPhotos.push(await (0, file_storage_1.storeUploadedFile)(file, true));
-        const resolvedLocation = await (0, geocode_1.resolveListingLocation)(data.address, campus.address);
+        const resolvedLocation = await (0, geocode_1.resolveListingLocation)(data.address, campus.address, {
+            name: campus.name,
+            locality: campus.location,
+        });
         const listing = await prisma_1.default.listing.create({
             data: {
                 ownerId: req.user.id,
@@ -88,7 +91,7 @@ async function createListing(req, res) {
     catch (error) {
         await Promise.allSettled(storedPhotos.map((photo) => (0, file_storage_1.deleteStoredFile)(photo.filename)));
         console.error('createListing error:', error);
-        if (error instanceof geocode_1.GoogleMapsError) {
+        if (error instanceof geocode_1.LocationServiceError) {
             (0, response_1.sendError)(res, error.message, error.statusCode);
             return;
         }
@@ -252,6 +255,7 @@ async function getPublicListings(req, res) {
                 ? Math.round((l.reviews.reduce((sum, r) => sum + r.rating, 0) / l.reviews.length) * 10) / 10
                 : 0;
             return {
+                id: l.id,
                 title: l.title,
                 description: l.description,
                 accommodationType: l.accommodationType,
@@ -425,7 +429,7 @@ async function updateListing(req, res) {
     }
     catch (error) {
         console.error('updateListing error:', error);
-        if (error instanceof geocode_1.GoogleMapsError) {
+        if (error instanceof geocode_1.LocationServiceError) {
             (0, response_1.sendError)(res, error.message, error.statusCode);
             return;
         }

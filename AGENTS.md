@@ -49,10 +49,13 @@ request failures through explicit error states.
   visually and functionally distinct.
 - Authorization is enforced on the backend, never only in the frontend.
 - Public listing results must contain approved listings only — never pending or rejected.
-- Campus and property coordinates are geocoded server-side from their validated addresses.
-- Listing route distance is calculated server-side between those addresses using Google Maps
-  Routes; failed lookups must not fall back to campus coordinates.
-- `GOOGLE_MAPS_API_KEY` is backend-only and must never be exposed to the browser.
+- Campus and property coordinates are geocoded server-side from their validated addresses
+  using OpenStreetMap Nominatim.
+- Listing route distance is calculated server-side between those addresses using OSRM; failed
+  lookups must not fall back to campus coordinates.
+- The public Nominatim and OSRM endpoints have usage limits and no uptime guarantees. Respect
+  Nominatim's one-request-per-second limit, and use a self-hosted or contracted provider before
+  scaling beyond low traffic.
 
 ## 4. Tech stack
 
@@ -85,12 +88,19 @@ Auth: registration (student/landlord — landlord starts unverified), login, `GE
 /api/auth/me`, logout. Public admin registration must always be rejected. Campus and listing
 endpoints follow the route/controller pattern above; pin exact paths as each sprint's
 endpoints land and keep this section current with the code (e.g. `GET /api/health` already
-exists as the baseline health check).
+exists as the baseline health check). Admin campus lookup suggestions are available at
+`GET /api/campuses/suggestions` with an `institutionId` query parameter. The admin-only
+endpoint looks up mapped South African university/college features associated with the
+selected institution's name or short name using OpenStreetMap Overpass.
+Students can retrieve only their own submitted reports at
+`GET /api/reports/mine`; report-status updates are also delivered through the authenticated
+notifications API. Students submit a required 1–5 rating and an optional comment to
+`POST /api/listings/:id/reviews`.
 
 ## 7. Security
 
 Never expose to the browser: password hashes (must never appear in any API response),
-database credentials, JWT signing secret, or Google Maps API key.
+database credentials, JWT signing secret, or any third-party provider credentials.
 
 Never run from the browser: authentication, role authorization (`authenticate`/`authorize`/
 verified-landlord middleware), listing-ownership checks, distance calculation, approval/

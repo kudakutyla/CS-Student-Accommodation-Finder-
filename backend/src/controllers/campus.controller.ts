@@ -9,7 +9,12 @@ import {
   updateInstitutionSchema,
 } from '../validators/campus.validator';
 import { sendSuccess, sendError } from '../utils/response';
-import { calculateGoogleRouteDistanceKm, GoogleMapsError, resolveAddressCoordinates } from '../utils/geocode';
+import {
+  calculateRouteDistanceKm,
+  LocationServiceError,
+  resolveAddressCoordinates,
+  searchInstitutionCampuses,
+} from '../utils/geocode';
 
 export async function getInstitutions(req: Request, res: Response): Promise<void> {
   try {
@@ -126,6 +131,37 @@ export async function getInstitutionSuggestions(req: Request, res: Response): Pr
       webPages: homepage ? [homepage] : [],
     };
   }));
+}
+
+export async function getCampusSuggestions(req: Request, res: Response): Promise<void> {
+  const query = z.object({
+    institutionId: z.string().uuid(),
+  }).safeParse(req.query);
+  if (!query.success) {
+    sendError(res, query.error.errors[0].message, 400);
+    return;
+  }
+
+  try {
+    const institution = await prisma.institution.findUnique({
+      where: { id: query.data.institutionId },
+      select: { id: true, name: true, shortName: true, isActive: true },
+    });
+    if (!institution || !institution.isActive) {
+      sendError(res, 'Select an active institution before searching for campuses.', 404);
+      return;
+    }
+
+    const suggestions = await searchInstitutionCampuses(institution.name, institution.shortName);
+    sendSuccess(res, suggestions);
+  } catch (error) {
+    if (error instanceof LocationServiceError) {
+      sendError(res, error.message, error.statusCode);
+      return;
+    }
+    console.error('getCampusSuggestions error:', error);
+    sendError(res, 'Failed to search South African campuses.', 500);
+  }
 }
 
 export async function createInstitution(req: Request, res: Response): Promise<void> {
@@ -299,7 +335,10 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const coordinates = await resolveAddressCoordinates(address);
+    const coordinates = await resolveAddressCoordinates(address, {
+      locality: location,
+      fallbackQuery: name,
+    });
 
     const existing = await prisma.campus.findUnique({
       where: { name },
@@ -337,7 +376,7 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
     sendSuccess(res, campus, 'Campus created successfully', 201);
   } catch (error) {
     console.error('createCampus error:', error);
-    if (error instanceof GoogleMapsError) {
+    if (error instanceof LocationServiceError) {
       sendError(res, error.message, error.statusCode);
       return;
     }
@@ -385,7 +424,7 @@ export async function updateCampus(req: Request, res: Response): Promise<void> {
       : [];
     const listingDistances = await Promise.all(listings.map(async (listing) => ({
       id: listing.id,
-      distanceFromCampus: await calculateGoogleRouteDistanceKm(listing.address, newAddress),
+      distanceFromCampus: await calculateRouteDistanceKm(listing.address, newAddress),
     })));
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -419,7 +458,7 @@ export async function updateCampus(req: Request, res: Response): Promise<void> {
     sendSuccess(res, updated, 'Campus updated successfully');
   } catch (error) {
     console.error('updateCampus error:', error);
-    if (error instanceof GoogleMapsError) {
+    if (error instanceof LocationServiceError) {
       sendError(res, error.message, error.statusCode);
       return;
     }

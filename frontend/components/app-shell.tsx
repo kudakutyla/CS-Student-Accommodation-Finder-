@@ -20,6 +20,7 @@ const roleDetails: Record<UserRole, { subtitle: string; links: NavigationItem[] 
       { label: 'Dashboard', href: '/student/dashboard', icon: Home },
       { label: 'Find Homes', href: '/listings', icon: Search },
       { label: 'Saved Homes', href: '/student/favourites', icon: Bookmark },
+      { label: 'My Reports', href: '/student/reports', icon: Flag },
       { label: 'Messages', href: '/messages', icon: MessageCircle },
       { label: 'Updates', href: '/notifications', icon: Bell },
       { label: 'Profile', href: '/student/profile', icon: UserCircle },
@@ -71,7 +72,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const role = getRouteRole(pathname, user?.role);
 
-  if (isLoading) {
+  if (isLoading || (pathname.startsWith('/listings') && (!isAuthenticated || !user))) {
     return <main className="flex-1">{children}</main>;
   }
 

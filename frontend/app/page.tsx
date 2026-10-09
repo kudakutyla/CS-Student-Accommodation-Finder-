@@ -11,7 +11,7 @@ import type { Campus, Institution, Listing } from '../types';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [campusId, setCampusId] = useState('');
   const [institutionId, setInstitutionId] = useState('');
   const [accommodationType, setAccommodationType] = useState('');
@@ -23,6 +23,19 @@ export default function Home() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (isLoading || !user) return;
+
+    const dashboardByRole = {
+      STUDENT: '/student/dashboard',
+      LANDLORD: '/landlord/dashboard',
+      ADMIN: '/admin/dashboard',
+    } as const;
+    router.replace(dashboardByRole[user.role]);
+  }, [isLoading, router, user]);
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+
     Promise.all([
       campusApi.getInstitutions(),
       campusApi.getCampuses(),
@@ -35,7 +48,7 @@ export default function Home() {
     }).catch(() => {
       setLoadError('Live accommodation data is temporarily unavailable. Search all listings or try again shortly.');
     });
-  }, [reloadKey]);
+  }, [isAuthenticated, isLoading, reloadKey]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -54,6 +67,10 @@ export default function Home() {
 
     router.push(target);
   };
+
+  if (isLoading || isAuthenticated) {
+    return <main className="flex flex-1 items-center justify-center text-sm text-[var(--text-muted)]" role="status">Taking you to your dashboard...</main>;
+  }
 
   return (
     <div className="overflow-hidden">

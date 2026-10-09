@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReport = createReport;
 exports.getAdminReports = getAdminReports;
+exports.getMyReports = getMyReports;
 exports.updateReportStatus = updateReportStatus;
 const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../config/prisma"));
@@ -38,19 +39,30 @@ async function createReport(req, res) {
             (0, response_1.sendError)(res, 'Only approved listings can be reported.', 400);
             return;
         }
-        const report = await prisma_1.default.$transaction(async (tx) => {
-            const savedReport = await tx.report.create({
-                data: {
-                    userId: req.user.id,
-                    listingId: id,
-                    reason: parsed.data.reason,
-                    description: parsed.data.description,
-                    status: 'PENDING',
-                },
-            });
-            const admins = await tx.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } });
+        const report = await prisma_1.default.report.create({
+            data: {
+                userId: req.user.id,
+                listingId: id,
+                reason: parsed.data.reason,
+                description: parsed.data.description,
+                status: 'PENDING',
+            },
+            select: {
+                id: true,
+                userId: true,
+                listingId: true,
+                reason: true,
+                description: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+        });
+        let message = 'Report submitted successfully';
+        try {
+            const admins = await prisma_1.default.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } });
             if (admins.length) {
-                await tx.notification.createMany({
+                await prisma_1.default.notification.createMany({
                     data: admins.map((admin) => ({
                         userId: admin.id,
                         type: 'NEW_REPORT',
@@ -59,9 +71,12 @@ async function createReport(req, res) {
                     })),
                 });
             }
-            return savedReport;
-        });
-        (0, response_1.sendSuccess)(res, report, 'Report submitted successfully', 201);
+        }
+        catch (error) {
+            console.error('createReport admin notification error:', error);
+            message = 'Report submitted successfully, but administrators could not be notified.';
+        }
+        (0, response_1.sendSuccess)(res, report, message, 201);
     }
     catch (error) {
         console.error('createReport error:', error);
@@ -71,7 +86,12 @@ async function createReport(req, res) {
 async function getAdminReports(_req, res) {
     try {
         const reports = await prisma_1.default.report.findMany({
-            include: {
+            select: {
+                id: true,
+                reason: true,
+                description: true,
+                status: true,
+                createdAt: true,
                 listing: { select: { id: true, title: true, approvalStatus: true } },
                 user: { select: { id: true, name: true, email: true } },
             },
@@ -82,6 +102,32 @@ async function getAdminReports(_req, res) {
     catch (error) {
         console.error('getAdminReports error:', error);
         (0, response_1.sendError)(res, 'Failed to fetch reports', 500);
+    }
+}
+async function getMyReports(req, res) {
+    try {
+        if (!req.user) {
+            (0, response_1.sendError)(res, 'Authentication required', 401);
+            return;
+        }
+        const reports = await prisma_1.default.report.findMany({
+            where: { userId: req.user.id },
+            select: {
+                id: true,
+                reason: true,
+                description: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true,
+                listing: { select: { id: true, title: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        (0, response_1.sendSuccess)(res, reports);
+    }
+    catch (error) {
+        console.error('getMyReports error:', error);
+        (0, response_1.sendError)(res, 'Failed to fetch your reports', 500);
     }
 }
 async function updateReportStatus(req, res) {
@@ -97,7 +143,12 @@ async function updateReportStatus(req, res) {
         }
         const report = await prisma_1.default.report.findUnique({
             where: { id: req.params.id },
-            include: { listing: { select: { title: true } } },
+            select: {
+                id: true,
+                userId: true,
+                status: true,
+                listing: { select: { title: true } },
+            },
         });
         if (!report) {
             (0, response_1.sendError)(res, 'Report not found', 404);
@@ -110,7 +161,8 @@ async function updateReportStatus(req, res) {
         const updated = await prisma_1.default.$transaction(async (tx) => {
             const savedReport = await tx.report.update({
                 where: { id: report.id },
-                data: { status: parsed.data.status, adminReviewNote: parsed.data.adminReviewNote || null },
+                data: { status: parsed.data.status },
+                select: { id: true, status: true, updatedAt: true },
             });
             await tx.auditLog.create({
                 data: {

@@ -13,8 +13,6 @@ Backend variables:
 - `CLIENT_URL`: allowed deployed frontend origin. For production, set this to
   `https://cs-student-accommodation-finder.vercel.app`.
 - `NODE_ENV`: set to `production` in the deployed backend.
-- `GOOGLE_MAPS_API_KEY`: private backend key with only the required Geocoding and Routes API
-	permissions; restrict it to the server environment and never use a `NEXT_PUBLIC_` variable.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`:
 	private SMTP transport and sender settings used for password reset email. Do not put
 	these values in source control or browser environment variables.
@@ -79,10 +77,26 @@ and error-monitoring services during deployment, configure log retention and
 alerting, and document a tested database backup and restore procedure. No
 production deployment has been performed or verified by this repository change.
 
-Google Maps route-distance requests are billable. Enable and restrict the required APIs, store the
-backend-only key in the deployment secret store, and monitor provider usage. Local uploads use a
-filesystem-backed adapter; production must provide durable storage for `UPLOAD_DIR` rather than
-an ephemeral container filesystem.
+Campus and property geocoding uses the public Nominatim service, and route distances use the
+public OSRM demo service. These services require no API key but are community-operated, rate
+limited, and provide no uptime or production traffic guarantee. The backend identifies itself
+to Nominatim and limits geocoding requests to at most one per second per backend process. Keep
+traffic low; deployments with multiple backend instances or higher usage should use a
+self-hosted or contracted geocoding/routing service before scaling. Do not fall back to
+approximate or client-provided coordinates when a lookup fails.
+
+Admin campus suggestions use the authenticated `GET /api/campuses/suggestions?institutionId=...`
+endpoint. On an explicit administrator action, the backend queries Overpass for South African
+university/college features tagged with the selected institution name or short name as
+operator, brand, or name. The list only contains mapped and suitably tagged OpenStreetMap features; it is not an
+authoritative or exhaustive campus directory. The administrator reviews and submits the campus
+form, and the backend performs its own Nominatim address geocoding before saving. Overpass,
+like the public Nominatim service, is community-operated, rate limited, and has no uptime
+guarantee; keep queries user-triggered, bounded, and low volume. Attribute OpenStreetMap
+contributors wherever geographic suggestions are presented.
+
+Local uploads use a filesystem-backed adapter; production must provide durable storage for
+`UPLOAD_DIR` rather than an ephemeral container filesystem.
 
 Campus creation and property listing submission require `GOOGLE_MAPS_API_KEY` to be configured
 in the backend environment. Enable the Geocoding API and Routes API for the key, restrict it to

@@ -26,15 +26,15 @@ export default function AdminDashboardPage() {
   }, [reloadKey]);
 
   const metrics = [
-    { label: 'Students', value: stats.totalStudents, href: '/admin/users?role=STUDENT' },
-    { label: 'Landlords', value: stats.totalLandlords, href: '/admin/users?role=LANDLORD' },
-    { label: 'Verified landlords', value: stats.verifiedLandlords, href: '/admin/users?role=LANDLORD&verified=true' },
-    { label: 'Listings', value: stats.totalListings, href: '/admin/listings' },
-    { label: 'Pending listings', value: stats.pendingListings, href: '/admin/pending-listings' },
-    { label: 'Approved listings', value: stats.approvedListings, href: '/admin/listings?status=APPROVED' },
+    { label: 'Students', value: stats.totalStudents, href: '/admin/results?type=students' },
+    { label: 'Landlords', value: stats.totalLandlords, href: '/admin/results?type=landlords' },
+    { label: 'Verified landlords', value: stats.verifiedLandlords, href: '/admin/results?type=verified-landlords' },
+    { label: 'Listings', value: stats.totalListings, href: '/admin/results?type=listings' },
+    { label: 'Pending listings', value: stats.pendingListings, href: '/admin/results?type=pending-listings' },
+    { label: 'Approved listings', value: stats.approvedListings, href: '/admin/results?type=approved-listings' },
     { label: 'Draft listings', value: stats.draftListings },
     { label: 'Rejected listings', value: stats.rejectedListings },
-    { label: 'Active campuses', value: stats.totalCampuses, href: '/admin/campuses' },
+    { label: 'Active campuses', value: stats.totalCampuses, href: '/admin/results?type=campuses' },
   ];
 
   return (

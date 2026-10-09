@@ -35,6 +35,12 @@ export interface Campus {
   createdAt?: string;
 }
 
+export interface CampusSuggestion {
+  name: string;
+  address: string;
+  location: string;
+}
+
 export interface ListingPhoto {
   id: string;
   listingId: string;
@@ -103,6 +109,16 @@ export interface ListingReport {
   createdAt: string;
   listing: Pick<Listing, 'id' | 'title' | 'approvalStatus'>;
   user: Pick<User, 'id' | 'name' | 'email'>;
+}
+
+export interface StudentReport {
+  id: string;
+  reason: string;
+  description: string;
+  status: ListingReport['status'];
+  createdAt: string;
+  updatedAt: string;
+  listing: Pick<Listing, 'id' | 'title'>;
 }
 
 export interface Listing {

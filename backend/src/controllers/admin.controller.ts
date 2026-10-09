@@ -44,17 +44,19 @@ export async function getPendingListings(req: Request, res: Response): Promise<v
 }
 
 export async function getAdminListings(req: Request, res: Response): Promise<void> {
-  try {
-    const filters = z.object({
-      status: z.enum(['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
-    }).safeParse(req.query);
-    if (!filters.success) {
-      sendError(res, filters.error.errors[0].message, 400);
-      return;
-    }
+  const parsed = z.object({
+    status: z.enum(['ALL', 'DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
+  }).safeParse(req.query);
+  if (!parsed.success) {
+    sendError(res, parsed.error.errors[0].message, 400);
+    return;
+  }
 
+  try {
     const listings = await prisma.listing.findMany({
-      where: filters.data.status ? { approvalStatus: filters.data.status } : {},
+      where: parsed.data.status && parsed.data.status !== 'ALL'
+        ? { approvalStatus: parsed.data.status }
+        : {},
       include: {
         photos: true,
         campus: true,
@@ -71,7 +73,6 @@ export async function getAdminListings(req: Request, res: Response): Promise<voi
       },
       orderBy: { createdAt: 'desc' },
     });
-
     sendSuccess(res, listings);
   } catch (error) {
     console.error('getAdminListings error:', error);

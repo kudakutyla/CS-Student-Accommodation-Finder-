@@ -10,7 +10,7 @@ const prisma_1 = __importDefault(require("../config/prisma"));
 const response_1 = require("../utils/response");
 const reviewSchema = zod_1.z.object({
     rating: zod_1.z.number().int().min(1).max(5),
-    comment: zod_1.z.string().min(3, 'Review comment must be at least 3 characters').max(1200),
+    comment: zod_1.z.string().trim().max(1200).optional().default('').refine((comment) => comment.length === 0 || comment.length >= 3, 'Review comment must be at least 3 characters'),
 });
 async function getListingReviews(req, res) {
     try {

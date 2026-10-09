@@ -5,7 +5,10 @@ import { sendSuccess, sendError } from '../utils/response';
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
-  comment: z.string().min(3, 'Review comment must be at least 3 characters').max(1200),
+  comment: z.string().trim().max(1200).optional().default('').refine(
+    (comment) => comment.length === 0 || comment.length >= 3,
+    'Review comment must be at least 3 characters'
+  ),
 });
 
 export async function getListingReviews(req: Request, res: Response): Promise<void> {
