@@ -16,6 +16,7 @@ import userRoutes from './routes/user.routes';
 import conversationRoutes from './routes/conversation.routes';
 import notificationRoutes from './routes/notification.routes';
 import adminReportRoutes from './routes/admin.report.routes';
+import reportRoutes from './routes/report.routes';
 import mediaRoutes from './routes/media.routes';
 import { sendSuccess, sendError } from './utils/response';
 
@@ -71,6 +72,7 @@ app.get('/', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/campuses', campusRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/notifications', notificationRoutes);

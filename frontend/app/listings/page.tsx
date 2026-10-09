@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { ListingImage } from '../../components/listing-image';
 import { campusApi, listingApi } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -20,7 +21,7 @@ function ListingsPageContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const currentQuery = searchParams.toString();
   const returnPath = `${pathname}${currentQuery ? `?${currentQuery}` : ''}`;
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -29,7 +30,7 @@ function ListingsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
-  const [filters, setFilters] = useState({
+  const initialFilters = {
     institutionId: searchParams.get('institutionId') || '',
     campusId: searchParams.get('campusId') || '',
     keyword: searchParams.get('search') || '',
@@ -39,7 +40,10 @@ function ListingsPageContent() {
     availability: searchParams.get('availability') || '',
     sort: searchParams.get('sort') || 'newest',
     page: Number(searchParams.get('page')) || 1,
-  });
+  };
+  const [filters, setFilters] = useState(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -64,15 +68,15 @@ function ListingsPageContent() {
       setError('');
       try {
         const res = await listingApi.searchListings({
-        institutionId: filters.institutionId || undefined,
-        campusId: filters.campusId || undefined,
-        search: filters.keyword || undefined,
-        minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
-        maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
-        type: filters.type || undefined,
-        availability: filters.availability || undefined,
-        sort: filters.sort,
-        page: filters.page,
+        institutionId: appliedFilters.institutionId || undefined,
+        campusId: appliedFilters.campusId || undefined,
+        search: appliedFilters.keyword || undefined,
+        minPrice: appliedFilters.minPrice ? Number(appliedFilters.minPrice) : undefined,
+        maxPrice: appliedFilters.maxPrice ? Number(appliedFilters.maxPrice) : undefined,
+        type: appliedFilters.type || undefined,
+        availability: appliedFilters.availability || undefined,
+        sort: appliedFilters.sort,
+        page: appliedFilters.page,
         limit: 12,
         });
         setItems(res.data.items || []);
@@ -83,24 +87,61 @@ function ListingsPageContent() {
       }
     }
     void loadListings();
-  }, [authLoading, isAuthenticated, filters, retryKey]);
+  }, [authLoading, isAuthenticated, appliedFilters, retryKey]);
+
+  function applyFilters() {
+    const nextFilters = { ...filters, page: 1 };
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+  }
+
+  function resetFilters() {
+    const reset = {
+      institutionId: '',
+      campusId: '',
+      keyword: '',
+      minPrice: '',
+      maxPrice: '',
+      type: '',
+      availability: '',
+      sort: 'newest',
+      page: 1,
+    };
+    setFilters(reset);
+    setAppliedFilters(reset);
+  }
 
   if (authLoading || !isAuthenticated) {
     return <div role="status" className="mx-auto max-w-7xl px-4 py-12 text-sm text-[var(--text-muted)]">Redirecting to sign in...</div>;
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 rounded-[28px] border border-[var(--beige)] bg-[var(--warm-white)] p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Search</p>
-        <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Find your perfect student home</h1>
-      </div>
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--beige)] pb-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Student discovery</p>
+          <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Find homes</h1>
+        </div>
+        {user?.role === 'STUDENT' ? <Link href="/student/favourites" className="text-sm font-semibold text-[var(--brown-dark)] underline-offset-4 hover:underline">Saved homes</Link> : null}
+      </header>
 
       <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="rounded-[28px] border border-[var(--beige)] bg-white p-5 shadow-sm">
-          <h2 className="font-serif text-2xl text-[var(--charcoal)]">Filters</h2>
+        <aside className="h-fit rounded-[28px] border border-[var(--beige)] bg-white p-5 shadow-sm">
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            aria-controls="listing-filter-controls"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="flex items-center gap-2 font-serif text-2xl text-[var(--charcoal)]">
+              <SlidersHorizontal size={21} strokeWidth={2.2} aria-hidden="true" className="text-[var(--accent-terracotta)]" />
+              Filters
+            </span>
+            <ChevronDown size={20} aria-hidden="true" className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+          </button>
 
-          <div className="mt-5 space-y-4">
+          {filtersOpen ? <div id="listing-filter-controls" className="mt-5 space-y-4">
             <div>
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
               <select value={filters.institutionId} onChange={(e) => setFilters((prev) => ({ ...prev, institutionId: e.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5 text-sm text-[var(--charcoal)] outline-none">
@@ -165,14 +206,29 @@ function ListingsPageContent() {
                 <option value="highest-rated">Highest rated</option>
               </select>
             </div>
-          </div>
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={applyFilters} disabled={loading} className="flex-1 rounded-2xl bg-[var(--charcoal)] px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                Apply filters
+              </button>
+              <button type="button" onClick={resetFilters} className="flex-1 rounded-2xl border border-[var(--beige)] px-3 py-2.5 text-sm font-semibold text-[var(--charcoal)] hover:bg-[var(--cream)]">
+                Reset filters
+              </button>
+            </div>
+          </div> : null}
         </aside>
 
         <main className="space-y-5">
           {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setRetryKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
           <div className="flex items-center justify-between rounded-[28px] border border-[var(--beige)] bg-white p-5 shadow-sm">
             <p className="text-sm text-[var(--text-muted)]">{loading ? 'Loading listings...' : `${items.length} homes found`}</p>
-            <button onClick={() => setFilters({ institutionId: '', campusId: '', keyword: '', minPrice: '', maxPrice: '', type: '', availability: '', sort: 'newest', page: 1 })} className="text-sm font-semibold text-[var(--brown-dark)] hover:underline">Reset filters</button>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-[var(--accent-terracotta)]/30 bg-[var(--warm-white)] px-4 py-2.5 text-left text-sm font-semibold text-[var(--charcoal)] shadow-sm hover:bg-[var(--cream)]"
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" className="shrink-0 text-[var(--accent-terracotta)]" />
+              <span>Adjust filters <span className="font-normal text-[var(--text-muted)]">— open the Filters menu</span></span>
+            </button>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -212,6 +268,6 @@ function ListingsPageContent() {
           </div>
         </main>
       </div>
-    </div>
+    </main>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import { AuthGuard } from '../../../components/auth-guard';
 import { adminApi } from '../../../lib/api';
 import type { User } from '../../../types';
@@ -43,10 +44,64 @@ export default function AdminAuditHistoryPage() {
     setFilters(emptyFilters);
   }
 
+  function downloadPdf() {
+    const pdf = new jsPDF();
+    const margin = 42;
+    const contentWidth = pdf.internal.pageSize.getWidth() - margin * 2;
+    const bottom = pdf.internal.pageSize.getHeight() - margin;
+    let y = margin;
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(20);
+    pdf.text('Audit history', margin, y);
+    y += 24;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    y += 16;
+    pdf.text(`From: ${filters.from || 'Any date'}`, margin, y);
+    y += 13;
+    pdf.text(`To: ${filters.to || 'Any date'}`, margin, y);
+    y += 13;
+    pdf.text(`Action category: ${filters.targetType || 'All categories'}`, margin, y);
+    y += 20;
+
+    function addText(text: string, bold = false) {
+      pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+      const lines = pdf.splitTextToSize(text, contentWidth) as string[];
+      for (const line of lines) {
+        if (y + 13 > bottom) {
+          pdf.addPage();
+          y = margin;
+        }
+        pdf.text(line, margin, y);
+        y += 13;
+      }
+    }
+
+    entries.forEach((entry, index) => {
+      addText(`${new Date(entry.createdAt).toLocaleString()}  |  ${entry.action.replaceAll('_', ' ')} · ${entry.targetType}`, true);
+      addText(entry.description);
+      addText(`By ${entry.admin.name}`);
+      if (index < entries.length - 1) y += 8;
+    });
+
+    const pageCount = pdf.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page += 1) {
+      pdf.setPage(page);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.text(`Page ${page} of ${pageCount}`, pdf.internal.pageSize.getWidth() - margin, pdf.internal.pageSize.getHeight() - 18, { align: 'right' });
+    }
+
+    pdf.save(`audit-history-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
   return (
     <AuthGuard allowedRoles={['ADMIN']}>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <header className="border-b border-[var(--beige)] pb-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Accountability</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Audit history</h1></header>
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--beige)] pb-5"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Accountability</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Audit history</h1></div><button type="button" onClick={downloadPdf} disabled={loading || Boolean(error) || entries.length === 0} className="bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Download PDF</button></header>
         <form onSubmit={applyFilters} className="grid gap-3 border-b border-[var(--beige)] py-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:items-end">
           <label className="grid gap-1 text-xs font-semibold">From<input type="date" value={form.from} onChange={(event) => setForm((current) => ({ ...current, from: event.target.value }))} className="border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" /></label>
           <label className="grid gap-1 text-xs font-semibold">To<input type="date" value={form.to} onChange={(event) => setForm((current) => ({ ...current, to: event.target.value }))} className="border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" /></label>

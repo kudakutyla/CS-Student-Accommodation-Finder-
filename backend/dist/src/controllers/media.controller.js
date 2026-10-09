@@ -15,10 +15,12 @@ const contentTypes = {
     webp: 'image/webp',
     pdf: 'application/pdf',
 };
-function setFileHeaders(res, filename, inline) {
+function setFileHeaders(res, filename, inline, allowCrossOrigin = false) {
     const extension = filename.split('.').pop()?.toLowerCase() || '';
     res.setHeader('Content-Type', contentTypes[extension] || 'application/octet-stream');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (allowCrossOrigin)
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename}"`);
 }
@@ -58,7 +60,7 @@ async function getProfilePicture(req, res) {
             return;
         }
         const file = await (0, file_storage_1.readStoredFile)(req.params.filename);
-        setFileHeaders(res, req.params.filename, true);
+        setFileHeaders(res, req.params.filename, true, true);
         res.send(file);
     }
     catch (error) {

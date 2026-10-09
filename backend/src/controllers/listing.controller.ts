@@ -6,7 +6,7 @@ import {
   listingSearchQuerySchema,
 } from '../validators/listing.validator';
 import { sendSuccess, sendError } from '../utils/response';
-import { GoogleMapsError, resolveListingLocation } from '../utils/geocode';
+import { LocationServiceError, resolveListingLocation } from '../utils/geocode';
 import { deleteStoredFile, storeUploadedFile } from '../utils/file-storage';
 import { Prisma } from '@prisma/client';
 
@@ -55,7 +55,10 @@ export async function createListing(req: Request, res: Response): Promise<void> 
     }
 
     for (const file of uploadedFiles) storedPhotos.push(await storeUploadedFile(file, true));
-    const resolvedLocation = await resolveListingLocation(data.address, campus.address);
+    const resolvedLocation = await resolveListingLocation(data.address, campus.address, {
+      name: campus.name,
+      locality: campus.location,
+    });
 
     const listing = await prisma.listing.create({
       data: {
@@ -91,7 +94,7 @@ export async function createListing(req: Request, res: Response): Promise<void> 
   } catch (error) {
     await Promise.allSettled(storedPhotos.map((photo) => deleteStoredFile(photo.filename)));
     console.error('createListing error:', error);
-    if (error instanceof GoogleMapsError) {
+    if (error instanceof LocationServiceError) {
       sendError(res, error.message, error.statusCode);
       return;
     }
@@ -478,7 +481,7 @@ export async function updateListing(req: Request, res: Response): Promise<void> 
     sendSuccess(res, updated, 'Listing updated successfully');
   } catch (error) {
     console.error('updateListing error:', error);
-    if (error instanceof GoogleMapsError) {
+    if (error instanceof LocationServiceError) {
       sendError(res, error.message, error.statusCode);
       return;
     }

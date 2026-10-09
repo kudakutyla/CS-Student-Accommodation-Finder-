@@ -5,6 +5,8 @@ import {
   getCampusById,
   getInstitutions,
   getAdminInstitutions,
+  getInstitutionSuggestions,
+  getCampusSuggestions,
   createInstitution,
   updateInstitution,
   createCampus,
@@ -16,6 +18,8 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
 const router = Router();
 
 // Public / Authenticated read
+router.get('/institutions/suggestions', authenticate, authorize('ADMIN'), getInstitutionSuggestions);
+router.get('/suggestions', authenticate, authorize('ADMIN'), getCampusSuggestions);
 router.get('/institutions/manage', authenticate, authorize('ADMIN'), getAdminInstitutions);
 router.get('/institutions', getInstitutions);
 router.post('/institutions', authenticate, authorize('ADMIN'), createInstitution);

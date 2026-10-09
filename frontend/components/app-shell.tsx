@@ -20,6 +20,7 @@ const roleDetails: Record<UserRole, { subtitle: string; links: NavigationItem[] 
       { label: 'Dashboard', href: '/student/dashboard', icon: Home },
       { label: 'Find Homes', href: '/listings', icon: Search },
       { label: 'Saved Homes', href: '/student/favourites', icon: Bookmark },
+      { label: 'My Reports', href: '/student/reports', icon: Flag },
       { label: 'Messages', href: '/messages', icon: MessageCircle },
       { label: 'Updates', href: '/notifications', icon: Bell },
       { label: 'Profile', href: '/student/profile', icon: UserCircle },
@@ -53,6 +54,7 @@ function getRouteRole(pathname: string, signedInRole?: UserRole): UserRole | nul
   if (pathname.startsWith('/student')) return 'STUDENT';
   if (pathname.startsWith('/landlord')) return 'LANDLORD';
   if (pathname.startsWith('/admin')) return 'ADMIN';
+  if (pathname.startsWith('/listings') && signedInRole) return signedInRole;
   if ((pathname.startsWith('/messages') || pathname.startsWith('/notifications')) && signedInRole) return signedInRole;
   return null;
 }
@@ -60,9 +62,13 @@ function getRouteRole(pathname: string, signedInRole?: UserRole): UserRole | nul
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const role = getRouteRole(pathname, user?.role);
+
+  if (pathname.startsWith('/listings') && (isLoading || !isAuthenticated || !user)) {
+    return <main className="flex-1">{children}</main>;
+  }
 
   if (!role || !isAuthenticated || !user) {
     return <><Navbar /><main className="flex-1">{children}</main></>;

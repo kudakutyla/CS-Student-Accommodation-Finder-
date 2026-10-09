@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPendingListings = getPendingListings;
+exports.getAdminListings = getAdminListings;
 exports.approveListing = approveListing;
 exports.rejectListing = rejectListing;
 exports.getAdminStats = getAdminStats;
@@ -47,6 +48,40 @@ async function getPendingListings(req, res) {
     catch (error) {
         console.error('getPendingListings error:', error);
         (0, response_1.sendError)(res, 'Failed to fetch pending listings', 500);
+    }
+}
+async function getAdminListings(req, res) {
+    const parsed = zod_1.z.object({
+        status: zod_1.z.enum(['ALL', 'PENDING', 'APPROVED']),
+    }).safeParse(req.query);
+    if (!parsed.success) {
+        (0, response_1.sendError)(res, parsed.error.errors[0].message, 400);
+        return;
+    }
+    try {
+        const listings = await prisma_1.default.listing.findMany({
+            where: parsed.data.status === 'ALL' ? {} : { approvalStatus: parsed.data.status },
+            include: {
+                photos: true,
+                campus: { select: { id: true, name: true, location: true } },
+                owner: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        phone: true,
+                        isVerified: true,
+                        createdAt: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        (0, response_1.sendSuccess)(res, listings);
+    }
+    catch (error) {
+        console.error('getAdminListings error:', error);
+        (0, response_1.sendError)(res, 'Failed to fetch listings', 500);
     }
 }
 async function approveListing(req, res) {

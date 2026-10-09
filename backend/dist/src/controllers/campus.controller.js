@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getInstitutions = getInstitutions;
 exports.getAdminInstitutions = getAdminInstitutions;
+exports.getInstitutionSuggestions = getInstitutionSuggestions;
+exports.getCampusSuggestions = getCampusSuggestions;
 exports.createInstitution = createInstitution;
 exports.updateInstitution = updateInstitution;
 exports.getCampuses = getCampuses;
@@ -13,6 +15,7 @@ exports.getCampusById = getCampusById;
 exports.createCampus = createCampus;
 exports.updateCampus = updateCampus;
 exports.toggleCampusStatus = toggleCampusStatus;
+const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../config/prisma"));
 const campus_validator_1 = require("../validators/campus.validator");
 const response_1 = require("../utils/response");
@@ -57,6 +60,96 @@ async function getAdminInstitutions(_req, res) {
     catch (error) {
         console.error('getAdminInstitutions error:', error);
         (0, response_1.sendError)(res, 'Failed to fetch institutions', 500);
+    }
+}
+async function getInstitutionSuggestions(req, res) {
+    const query = zod_1.z.object({
+        search: zod_1.z.string().trim().min(2).max(100),
+    }).safeParse(req.query);
+    if (!query.success) {
+        (0, response_1.sendError)(res, query.error.errors[0].message, 400);
+        return;
+    }
+    const url = new URL('https://api.openalex.org/institutions');
+    url.searchParams.set('filter', 'country_code:ZA,type:education');
+    url.searchParams.set('per-page', '100');
+    url.searchParams.set('select', 'display_name,country_code,type,homepage_url');
+    let response;
+    try {
+        response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    }
+    catch (error) {
+        console.error('getInstitutionSuggestions request failed:', error);
+        (0, response_1.sendError)(res, 'The university suggestion service is temporarily unavailable.', 503);
+        return;
+    }
+    if (!response.ok) {
+        console.error(`getInstitutionSuggestions upstream responded with ${response.status} ${response.statusText}`);
+        (0, response_1.sendError)(res, 'The university suggestion service is temporarily unavailable.', 503);
+        return;
+    }
+    let payload;
+    try {
+        payload = await response.json();
+    }
+    catch (error) {
+        console.error('getInstitutionSuggestions returned invalid JSON:', error);
+        (0, response_1.sendError)(res, 'The university suggestion service returned invalid data.', 502);
+        return;
+    }
+    const result = zod_1.z.object({
+        results: zod_1.z.array(zod_1.z.object({
+            display_name: zod_1.z.string().trim().min(1),
+            country_code: zod_1.z.literal('ZA'),
+            type: zod_1.z.literal('education'),
+            homepage_url: zod_1.z.string().url().nullable().optional(),
+        })),
+    }).safeParse(payload);
+    if (!result.success) {
+        (0, response_1.sendError)(res, 'The university suggestion service returned invalid data.', 502);
+        return;
+    }
+    const search = query.data.search.toLowerCase();
+    const matches = result.data.results.filter((institution) => institution.display_name.toLowerCase().includes(search));
+    (0, response_1.sendSuccess)(res, matches.slice(0, 50).map((institution) => {
+        const homepage = institution.homepage_url ?? null;
+        const domain = homepage ? new URL(homepage).hostname : null;
+        return {
+            name: institution.display_name,
+            country: 'South Africa',
+            countryCode: institution.country_code,
+            domains: domain ? [domain] : [],
+            webPages: homepage ? [homepage] : [],
+        };
+    }));
+}
+async function getCampusSuggestions(req, res) {
+    const query = zod_1.z.object({
+        institutionId: zod_1.z.string().uuid(),
+    }).safeParse(req.query);
+    if (!query.success) {
+        (0, response_1.sendError)(res, query.error.errors[0].message, 400);
+        return;
+    }
+    try {
+        const institution = await prisma_1.default.institution.findUnique({
+            where: { id: query.data.institutionId },
+            select: { id: true, name: true, shortName: true, isActive: true },
+        });
+        if (!institution || !institution.isActive) {
+            (0, response_1.sendError)(res, 'Select an active institution before searching for campuses.', 404);
+            return;
+        }
+        const suggestions = await (0, geocode_1.searchInstitutionCampuses)(institution.name, institution.shortName);
+        (0, response_1.sendSuccess)(res, suggestions);
+    }
+    catch (error) {
+        if (error instanceof geocode_1.LocationServiceError) {
+            (0, response_1.sendError)(res, error.message, error.statusCode);
+            return;
+        }
+        console.error('getCampusSuggestions error:', error);
+        (0, response_1.sendError)(res, 'Failed to search South African campuses.', 500);
     }
 }
 async function createInstitution(req, res) {
@@ -182,6 +275,7 @@ async function getCampusById(req, res) {
         const campus = await prisma_1.default.campus.findUnique({
             where: { id },
             include: {
+                institution: true,
                 _count: {
                     select: {
                         listings: {
@@ -191,7 +285,7 @@ async function getCampusById(req, res) {
                 },
             },
         });
-        if (!campus) {
+        if (!campus || (req.user?.role !== 'ADMIN' && (!campus.isActive || !campus.institution?.isActive))) {
             (0, response_1.sendError)(res, 'Campus not found', 404);
             return;
         }
@@ -218,7 +312,10 @@ async function createCampus(req, res) {
             (0, response_1.sendError)(res, 'Selected institution does not exist', 404);
             return;
         }
-        const coordinates = await (0, geocode_1.resolveAddressCoordinates)(address);
+        const coordinates = await (0, geocode_1.resolveAddressCoordinates)(address, {
+            locality: location,
+            fallbackQuery: name,
+        });
         const existing = await prisma_1.default.campus.findUnique({
             where: { name },
         });
@@ -252,7 +349,7 @@ async function createCampus(req, res) {
     }
     catch (error) {
         console.error('createCampus error:', error);
-        if (error instanceof geocode_1.GoogleMapsError) {
+        if (error instanceof geocode_1.LocationServiceError) {
             (0, response_1.sendError)(res, error.message, error.statusCode);
             return;
         }
@@ -294,7 +391,7 @@ async function updateCampus(req, res) {
             : [];
         const listingDistances = await Promise.all(listings.map(async (listing) => ({
             id: listing.id,
-            distanceFromCampus: await (0, geocode_1.calculateGoogleRouteDistanceKm)(listing.address, newAddress),
+            distanceFromCampus: await (0, geocode_1.calculateRouteDistanceKm)(listing.address, newAddress),
         })));
         const updated = await prisma_1.default.$transaction(async (tx) => {
             const savedCampus = await tx.campus.update({
@@ -326,7 +423,7 @@ async function updateCampus(req, res) {
     }
     catch (error) {
         console.error('updateCampus error:', error);
-        if (error instanceof geocode_1.GoogleMapsError) {
+        if (error instanceof geocode_1.LocationServiceError) {
             (0, response_1.sendError)(res, error.message, error.statusCode);
             return;
         }

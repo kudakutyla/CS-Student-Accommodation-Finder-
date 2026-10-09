@@ -2,6 +2,7 @@ import {
   ApiResponse,
   AppNotification,
   Campus,
+  CampusSuggestion,
   Conversation,
   Favourite,
   Institution,
@@ -10,6 +11,7 @@ import {
   Message,
   Pagination,
   Review,
+  StudentReport,
   User,
 } from '../types';
 
@@ -124,6 +126,16 @@ export const authApi = {
 export const campusApi = {
   getInstitutions: () => apiFetch<Institution[]>('/campuses/institutions'),
   getAdminInstitutions: () => apiFetch<Institution[]>('/campuses/institutions/manage'),
+  getInstitutionSuggestions: (search: string) => {
+    const query = new URLSearchParams({ search });
+    return apiFetch<Array<{
+      name: string;
+      country: string;
+      countryCode: string | null;
+      domains: string[];
+      webPages: string[];
+    }>>(`/campuses/institutions/suggestions?${query}`);
+  },
   createInstitution: (data: { name: string; shortName?: string | null }) =>
     apiFetch<Institution>('/campuses/institutions', { method: 'POST', body: JSON.stringify(data) }),
   updateInstitution: (id: string, data: Partial<Institution>) =>
@@ -137,6 +149,10 @@ export const campusApi = {
   },
 
   getCampusById: (id: string) => apiFetch<Campus>(`/campuses/${id}`),
+  getCampusSuggestions: (institutionId: string) => {
+    const query = new URLSearchParams({ institutionId });
+    return apiFetch<CampusSuggestion[]>(`/campuses/suggestions?${query}`);
+  },
 
   createCampus: (data: {
     name: string;
@@ -218,6 +234,7 @@ export const reviewApi = {
 export const reportApi = {
   create: (listingId: string, data: { reason: string; description: string }) =>
     apiFetch<ListingReport>(`/listings/${listingId}/reports`, { method: 'POST', body: JSON.stringify(data) }),
+  mine: () => apiFetch<StudentReport[]>('/reports/mine'),
 };
 
 export const conversationApi = {
@@ -247,6 +264,10 @@ export const notificationApi = {
 // Admin API
 export const adminApi = {
   getPendingListings: () => apiFetch<Listing[]>('/admin/listings/pending'),
+  getListings: (status: 'ALL' | 'PENDING' | 'APPROVED') => {
+    const query = new URLSearchParams({ status });
+    return apiFetch<Listing[]>(`/admin/listings?${query}`);
+  },
 
   approveListing: (id: string) =>
     apiFetch<Listing>(`/admin/listings/${id}/approve`, {

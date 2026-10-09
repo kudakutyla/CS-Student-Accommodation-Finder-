@@ -5,25 +5,20 @@ import Link from 'next/link';
 import { ListingImage } from '../../../components/listing-image';
 import { AuthGuard } from '../../../components/auth-guard';
 import { campusApi, listingApi } from '../../../lib/api';
-import type { Campus, Institution, Listing } from '../../../types';
+import type { Campus, Listing } from '../../../types';
 
 export default function StudentDashboardPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [featured, setFeatured] = useState<Listing[]>([]);
-  const [institutionId, setInstitutionId] = useState('');
-  const [campusId, setCampusId] = useState('');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     async function load() {
-      const [institutionRes, campusRes, listingRes] = await Promise.all([
-        campusApi.getInstitutions(),
+      const [campusRes, listingRes] = await Promise.all([
         campusApi.getCampuses(),
         listingApi.searchListings({ limit: 4, sort: 'newest' }),
       ]);
-      setInstitutions(institutionRes.data || []);
       setCampuses(campusRes.data || []);
       setFeatured(listingRes.data.items || []);
       setError('');
@@ -31,63 +26,40 @@ export default function StudentDashboardPage() {
     load().catch((err) => setError(err instanceof Error ? err.message : 'Unable to load the student dashboard.'));
   }, [reloadKey]);
 
-  const discoveryTarget = () => {
-    const params = new URLSearchParams();
-    if (institutionId) params.set('institutionId', institutionId);
-    if (campusId) params.set('campusId', campusId);
-    return `/listings${params.size ? `?${params}` : ''}`;
-  };
-
   return (
     <AuthGuard allowedRoles={['STUDENT']}>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {error ? <p role="alert" className="mb-5 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setReloadKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
         <section className="overflow-hidden rounded-[30px] border border-[var(--beige)] bg-[radial-gradient(circle_at_top_left,_rgba(122,145,117,0.12),_transparent_35%),linear-gradient(135deg,#fdfaf7,#f4eadf)] p-6 shadow-[0_24px_60px_rgba(92,74,56,0.08)] sm:p-8 lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-            <div>
+          <div>
+            <div className="max-w-3xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Student dashboard</p>
               <h1 className="mt-4 font-serif text-4xl text-[var(--charcoal)] sm:text-5xl">Find a place that feels like home.</h1>
               <p className="mt-4 max-w-xl text-base text-[var(--text-muted)]">
                 Compare verified homes near campus, filter by price and distance, and discover accommodation built for student life.
               </p>
+            </div>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <label className="flex-1"><span className="sr-only">Institution</span><select value={institutionId} onChange={(event) => { setInstitutionId(event.target.value); setCampusId(''); }} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)]"><option value="">All institutions</option>{institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select></label>
-                <label className="flex-1"><span className="sr-only">Campus</span><select value={campusId} onChange={(event) => setCampusId(event.target.value)} disabled={!institutionId} className="w-full rounded-2xl border border-[var(--beige)] bg-white/80 px-4 py-3 text-sm text-[var(--charcoal)] disabled:opacity-60"><option value="">{institutionId ? 'All campuses' : 'Choose an institution first'}</option>{campuses.filter((campus) => campus.institutionId === institutionId).map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</select></label>
-                <Link
-                  href={discoveryTarget()}
-                  className="inline-flex items-center justify-center rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--charcoal-mid)]"
-                >
-                  Search homes
-                </Link>
-              </div>
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/listings"
+                className="inline-flex items-center justify-center rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--charcoal-mid)]"
+              >
+                Search homes
+              </Link>
+              <Link
+                href="/student/favourites"
+                className="inline-flex items-center justify-center rounded-2xl border border-[var(--beige)] bg-white/80 px-5 py-3 text-sm font-semibold text-[var(--charcoal)] transition hover:bg-white"
+              >
+                Saved homes
+              </Link>
+            </div>
 
-              <div className="mt-6 flex flex-wrap gap-3 text-sm text-[var(--charcoal)]">
+            <div className="mt-6 max-w-3xl">
+              <div className="flex flex-wrap gap-3 text-sm text-[var(--charcoal)]">
                 <span className="rounded-full bg-[var(--beige)] px-3 py-2 font-medium">Verified listings</span>
                 <span className="rounded-full bg-white/80 px-3 py-2 font-medium">Near campus</span>
                 <span className="rounded-full bg-white/80 px-3 py-2 font-medium">Secure options</span>
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-[var(--beige)] bg-white/80 p-5 shadow-[0_12px_30px_rgba(92,74,56,0.06)] backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Live overview</p>
-                  <p className="mt-2 font-serif text-3xl text-[var(--charcoal)]">{campuses.length}</p>
-                </div>
-                <div className="rounded-2xl bg-[var(--cream)] px-3 py-2 text-xs font-semibold text-[var(--brown-dark)]">Campuses</div>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                {campuses.slice(0, 3).map((campus) => (
-                  <div key={campus.id} className="flex items-center justify-between rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-3 py-2.5">
-                    <div>
-                      <p className="font-semibold text-[var(--charcoal)]">{campus.name}</p>
-                      <p className="text-xs text-[var(--text-muted)]">{campus.location}</p>
-                    </div>
-                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--accent-sage)]">{campus.listingCount ?? 0}</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bookmark, MessageCircle, Flag } from 'lucide-react';
+import { ArrowLeft, Bookmark, MessageCircle, Flag, Star } from 'lucide-react';
 import { ListingImage } from '../../../components/listing-image';
 import { useAuth } from '../../../lib/auth-context';
 import { conversationApi, favouriteApi, listingApi, reportApi, reviewApi } from '../../../lib/api';
@@ -16,6 +16,7 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [reportNotice, setReportNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [isFavourite, setIsFavourite] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -102,10 +103,11 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
     event.preventDefault();
     setBusy(true);
     setError('');
+    setReportNotice('');
     try {
-      await reportApi.create(listingId, { reason: reportReason, description: reportDescription });
+      const response = await reportApi.create(listingId, { reason: reportReason, description: reportDescription });
       setReportDescription('');
-      setNotice('Your report has been sent to the moderation team.');
+      setReportNotice(response.message || 'Report submitted successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to submit your report.');
     } finally {
@@ -113,16 +115,30 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
     }
   }
 
+  function goBack() {
+    if (window.history.length > 1) router.back();
+    else router.push('/listings');
+  }
+
   if (authLoading || !isAuthenticated || loading) return <p role="status" className="mx-auto max-w-5xl px-4 py-16 text-sm text-[var(--text-muted)]">Loading accommodation details...</p>;
   if (error && !listing) return <main className="mx-auto max-w-5xl px-4 py-16"><p role="alert" className="text-sm text-red-700">{error}</p><Link href="/listings" className="mt-4 inline-block underline">Back to search</Link></main>;
   if (!listing) return null;
 
   const average = reviews.length ? reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length : 0;
+  const hasReviewed = user ? reviews.some((review) => review.user.id === user.id) : false;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {error ? <p role="alert" className="mb-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
       {notice ? <p role="status" className="mb-4 border-l-4 border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p> : null}
+      <button
+        type="button"
+        onClick={goBack}
+        className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--brown-dark)] hover:underline"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back
+      </button>
       <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
         <div>
           <div className="relative aspect-[4/3] overflow-hidden bg-[var(--cream)]">
@@ -157,22 +173,51 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
       <section className="mt-12 grid gap-10 border-t border-[var(--beige)] pt-8 lg:grid-cols-2">
         <div>
           <h2 className="font-serif text-2xl text-[var(--charcoal)]">Student reviews</h2>
-          {isAuthenticated && user?.role === 'STUDENT' ? (
+          {isAuthenticated && user?.role === 'STUDENT' && !hasReviewed ? (
             <form onSubmit={submitReview} className="mt-4 grid gap-3 border-b border-[var(--beige)] pb-5">
-              <label className="text-sm font-medium">Your rating<select value={rating} onChange={(event) => setRating(Number(event.target.value))} className="ml-3 border border-[var(--beige)] bg-white px-3 py-2"><option value={5}>5 stars</option><option value={4}>4 stars</option><option value={3}>3 stars</option><option value={2}>2 stars</option><option value={1}>1 star</option></select></label>
-              <label className="grid gap-1 text-sm font-medium">Review<textarea required minLength={3} maxLength={1200} value={comment} onChange={(event) => setComment(event.target.value)} className="min-h-24 border border-[var(--beige)] p-3" /></label>
+              <fieldset>
+                <legend className="text-sm font-medium">Your rating</legend>
+                <div role="radiogroup" aria-label="Your rating" className="mt-2 flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <label key={value} className="cursor-pointer rounded p-1 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--accent-terracotta)]">
+                      <input
+                        type="radio"
+                        name="review-rating"
+                        value={value}
+                        checked={rating === value}
+                        onChange={() => setRating(value)}
+                        aria-label={`${value} ${value === 1 ? 'star' : 'stars'}`}
+                        className="sr-only"
+                      />
+                      <Star
+                        size={25}
+                        aria-hidden="true"
+                        className={value <= rating ? 'fill-[var(--accent-terracotta)] text-[var(--accent-terracotta)]' : 'text-[var(--text-muted)]'}
+                      />
+                    </label>
+                  ))}
+                  <span className="ml-2 text-sm text-[var(--text-muted)]">{rating} out of 5</span>
+                </div>
+              </fieldset>
+              <label className="grid gap-1 text-sm font-medium">Review (optional)<textarea minLength={3} maxLength={1200} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a few words about your experience (optional)" className="min-h-24 border border-[var(--beige)] p-3" /></label>
               <button disabled={busy} className="w-fit bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Submit review</button>
             </form>
           ) : null}
+          {isAuthenticated && user?.role === 'STUDENT' && hasReviewed ? (
+            <p role="status" className="mt-4 border-l-4 border-[var(--accent-sage)] bg-[var(--cream)] px-4 py-3 text-sm text-[var(--charcoal)]">
+              You have already reviewed this listing. Your review is shown below.
+            </p>
+          ) : null}
           <div className="divide-y divide-[var(--beige)]">
-            {reviews.length ? reviews.map((review) => <article key={review.id} className="py-4"><p className="text-sm font-semibold">{review.user.name} <span className="ml-2 text-[var(--accent-terracotta)]">{'★'.repeat(review.rating)}</span></p><p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">{review.comment}</p></article>) : <p className="py-4 text-sm text-[var(--text-muted)]">No reviews yet.</p>}
+            {reviews.length ? reviews.map((review) => <article key={review.id} className="py-4"><p className="text-sm font-semibold">{review.user.name} <span className="ml-2 text-[var(--accent-terracotta)]">{'★'.repeat(review.rating)}</span></p>{review.comment ? <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">{review.comment}</p> : null}</article>) : <p className="py-4 text-sm text-[var(--text-muted)]">No reviews yet.</p>}
           </div>
         </div>
         {isAuthenticated && user?.role === 'STUDENT' ? (
           <form onSubmit={submitReport} className="h-fit border border-[var(--beige)] p-5">
             <h2 className="inline-flex items-center gap-2 font-serif text-2xl text-[var(--charcoal)]"><Flag size={18} aria-hidden="true" />Report a concern</h2>
+            {reportNotice ? <p role="status" className="mt-3 border-l-4 border-emerald-700 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{reportNotice}</p> : null}
             <label className="mt-4 grid gap-1 text-sm font-medium">Reason<input required maxLength={200} value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="border border-[var(--beige)] p-2.5" /></label>
-            <label className="mt-3 grid gap-1 text-sm font-medium">Details<textarea required minLength={10} maxLength={2000} value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} className="min-h-24 border border-[var(--beige)] p-2.5" /></label>
+            <label className="mt-3 grid gap-1 text-sm font-medium">Details<textarea required minLength={10} maxLength={2000} value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} placeholder="Describe your concern in at least 10 characters" className="min-h-24 border border-[var(--beige)] p-2.5 placeholder:text-[var(--text-muted)]" /></label>
             <button disabled={busy} className="mt-3 border border-[var(--charcoal)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Send report</button>
           </form>
         ) : null}

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getPendingListings,
+  getAdminListings,
   approveListing,
   rejectListing,
   getAdminStats,
@@ -16,6 +17,7 @@ const router = Router();
 router.use(authenticate, authorize('ADMIN'));
 
 router.get('/listings/pending', getPendingListings);
+router.get('/listings', getAdminListings);
 router.patch('/listings/:id/approve', approveListing);
 router.patch('/listings/:id/reject', rejectListing);
 router.get('/stats', getAdminStats);

@@ -43,6 +43,41 @@ export async function getPendingListings(req: Request, res: Response): Promise<v
   }
 }
 
+export async function getAdminListings(req: Request, res: Response): Promise<void> {
+  const parsed = z.object({
+    status: z.enum(['ALL', 'PENDING', 'APPROVED']),
+  }).safeParse(req.query);
+  if (!parsed.success) {
+    sendError(res, parsed.error.errors[0].message, 400);
+    return;
+  }
+
+  try {
+    const listings = await prisma.listing.findMany({
+      where: parsed.data.status === 'ALL' ? {} : { approvalStatus: parsed.data.status },
+      include: {
+        photos: true,
+        campus: { select: { id: true, name: true, location: true } },
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            isVerified: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    sendSuccess(res, listings);
+  } catch (error) {
+    console.error('getAdminListings error:', error);
+    sendError(res, 'Failed to fetch listings', 500);
+  }
+}
+
 export async function approveListing(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {

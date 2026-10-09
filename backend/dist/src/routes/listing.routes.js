@@ -12,7 +12,7 @@ router.get('/', listing_controller_1.getPublicListings);
 // Landlord's own listings (Must come before /:id)
 router.get('/my', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('LANDLORD'), listing_controller_1.getMyListings);
 // Specific listing detail (public or authenticated)
-router.get('/:id', listing_controller_1.getListingById);
+router.get('/:id', auth_middleware_1.authenticateOptional, listing_controller_1.getListingById);
 router.get('/:id/reviews', review_controller_1.getListingReviews);
 router.post('/:id/reviews', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('STUDENT'), review_controller_1.createReview);
 router.post('/:id/reports', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('STUDENT'), report_controller_1.createReport);
