@@ -2,6 +2,7 @@ import {
   ApiResponse,
   AppNotification,
   Campus,
+  CampusAddressSuggestion,
   CampusSuggestion,
   Conversation,
   Favourite,
@@ -90,6 +91,18 @@ export const authApi = {
       body: JSON.stringify(credentials),
     }),
 
+  forgotPassword: (email: string) =>
+    apiFetch<null>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    apiFetch<null>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
+
   uploadProfilePicture: (file: File) => {
     const body = new FormData();
     body.append('picture', file);
@@ -98,6 +111,12 @@ export const authApi = {
       body,
     });
   },
+
+  updateProfile: (data: { name: string; email: string; phone: string | null }) =>
+    apiFetch<{ user: User }>('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 
   register: (data: {
     name: string;
@@ -126,15 +145,9 @@ export const authApi = {
 export const campusApi = {
   getInstitutions: () => apiFetch<Institution[]>('/campuses/institutions'),
   getAdminInstitutions: () => apiFetch<Institution[]>('/campuses/institutions/manage'),
-  getInstitutionSuggestions: (search: string) => {
+  getInstitutionSuggestions: (search = '') => {
     const query = new URLSearchParams({ search });
-    return apiFetch<Array<{
-      name: string;
-      country: string;
-      countryCode: string | null;
-      domains: string[];
-      webPages: string[];
-    }>>(`/campuses/institutions/suggestions?${query}`);
+    return apiFetch<Array<{ name: string; country: string; countryCode: string | null; domains: string[]; webPages: string[] }>>(`/campuses/institutions/suggestions?${query}`);
   },
   createInstitution: (data: { name: string; shortName?: string | null }) =>
     apiFetch<Institution>('/campuses/institutions', { method: 'POST', body: JSON.stringify(data) }),
@@ -152,6 +165,10 @@ export const campusApi = {
   getCampusSuggestions: (institutionId: string) => {
     const query = new URLSearchParams({ institutionId });
     return apiFetch<CampusSuggestion[]>(`/campuses/suggestions?${query}`);
+  },
+  getCampusAddressSuggestions: (address: string, locality: string, campusName: string) => {
+    const query = new URLSearchParams({ address, locality, campusName });
+    return apiFetch<CampusAddressSuggestion[]>(`/campuses/address-suggestions?${query}`);
   },
 
   createCampus: (data: {
@@ -197,7 +214,19 @@ export const listingApi = {
   getListingById: (id: string) => apiFetch<Listing>(`/listings/${id}`),
 
   getMyListings: () =>
-    apiFetch<{ items: Listing[]; stats: Record<string, number> }>('/listings/my'),
+    apiFetch<{
+      items: Listing[];
+      stats: {
+        total: number;
+        approved: number;
+        pending: number;
+        rejected: number;
+        draft: number;
+        totalRooms: number;
+        availableRooms: number;
+        availableRoomsByType: Record<string, number>;
+      };
+    }>('/listings/my'),
 
   createListing: (body: FormData) =>
     apiFetch<Listing>('/listings', {
@@ -264,9 +293,10 @@ export const notificationApi = {
 // Admin API
 export const adminApi = {
   getPendingListings: () => apiFetch<Listing[]>('/admin/listings/pending'),
-  getListings: (status: 'ALL' | 'PENDING' | 'APPROVED') => {
-    const query = new URLSearchParams({ status });
-    return apiFetch<Listing[]>(`/admin/listings?${query}`);
+  getListings: (status?: Listing['approvalStatus'] | 'ALL') => {
+    const query = new URLSearchParams();
+    if (status && status !== 'ALL') query.set('status', status);
+    return apiFetch<Listing[]>(`/admin/listings${query.size ? `?${query}` : ''}`);
   },
 
   approveListing: (id: string) =>
@@ -281,7 +311,12 @@ export const adminApi = {
     }),
 
   getAdminStats: () => apiFetch<Record<string, number>>('/admin/stats'),
-  getUsers: () => apiFetch<User[]>('/admin/users'),
+  getUsers: (filters: { role?: User['role']; verified?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (filters.role) query.set('role', filters.role);
+    if (filters.verified !== undefined) query.set('verified', String(filters.verified));
+    return apiFetch<User[]>(`/admin/users${query.size ? `?${query}` : ''}`);
+  },
   updateUser: (id: string, data: { isVerified?: boolean; isActive?: boolean }) =>
     apiFetch<User>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getAuditLogs: (filters: { from?: string; to?: string; targetType?: string } = {}) => {

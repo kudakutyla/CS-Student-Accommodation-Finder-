@@ -12,6 +12,7 @@ function LoginForm() {
   const { login } = useAuth();
   const redirectTo = searchParams.get('redirect');
   const safeRedirect = redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : null;
+  const passwordReset = searchParams.get('passwordReset') === 'success';
   const [email, setEmail] = useState('student@finder.co.za');
   const [password, setPassword] = useState('StudentPass123!');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,11 +26,8 @@ function LoginForm() {
 
     try {
       const user = await login({ email, password });
-      if (safeRedirect) {
-        router.push(safeRedirect);
-        return;
-      }
       if (user.role === 'ADMIN') router.push('/admin/dashboard');
+      else if (safeRedirect) router.push(safeRedirect);
       else if (user.role === 'LANDLORD') router.push('/landlord/dashboard');
       else router.push('/student/dashboard');
     } catch (err) {
@@ -62,6 +60,7 @@ function LoginForm() {
             <Link href="/" className="text-sm font-medium text-[var(--brown-dark)] underline-offset-4 hover:underline">Back home</Link>
           </div>
 
+          {passwordReset ? <p role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Your password has been reset. Log in with your new password.</p> : null}
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Email</label>
@@ -74,6 +73,7 @@ function LoginForm() {
                 <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="min-w-0 flex-1 rounded-l-2xl bg-transparent px-4 py-3 outline-none" placeholder="Enter your password" required />
                 <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="px-4 text-[var(--text-muted)] hover:text-[var(--charcoal)]"><span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>{showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button>
               </div>
+              <div className="mt-2 text-right"><Link href="/forgot-password" className="text-sm font-semibold text-[var(--brown-dark)] underline-offset-4 hover:underline">Forgot password?</Link></div>
             </div>
 
             {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}

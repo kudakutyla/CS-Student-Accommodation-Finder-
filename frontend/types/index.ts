@@ -41,6 +41,10 @@ export interface CampusSuggestion {
   location: string;
 }
 
+export interface CampusAddressSuggestion {
+  address: string;
+}
+
 export interface ListingPhoto {
   id: string;
   listingId: string;

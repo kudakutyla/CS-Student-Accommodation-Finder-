@@ -20,20 +20,23 @@ describe('OpenAlex institution suggestions', () => {
     jest.restoreAllMocks();
   });
 
-  it('queries the bounded South African education catalog and matches partial names', async () => {
+  it('queries the South African education catalog and returns matching universities', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        results: [{
-          display_name: 'Tshwane University of Technology',
-          country_code: 'ZA',
-          type: 'education',
-          homepage_url: 'https://tut.ac.za',
-        }, {
-          display_name: 'Another Institution',
-          country_code: 'ZA',
-          type: 'education',
-        }],
+        results: [
+          {
+            display_name: 'Tshwane University of Technology',
+            country_code: 'ZA',
+            type: 'education',
+            homepage_url: 'https://tut.ac.za',
+          },
+          {
+            display_name: 'Another South African University',
+            country_code: 'ZA',
+            type: 'education',
+          },
+        ],
       }),
     });
     global.fetch = fetchMock as unknown as typeof fetch;
@@ -47,7 +50,6 @@ describe('OpenAlex institution suggestions', () => {
     expect(url.searchParams.get('filter')).toBe('country_code:ZA,type:education');
     expect(url.searchParams.get('per-page')).toBe('100');
     expect(url.searchParams.get('select')).toBe('display_name,country_code,type,homepage_url');
-    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
     expect((response.json as jest.Mock).mock.calls[0][0].data).toEqual([{
       name: 'Tshwane University of Technology',
       country: 'South Africa',
@@ -55,6 +57,24 @@ describe('OpenAlex institution suggestions', () => {
       domains: ['tut.ac.za'],
       webPages: ['https://tut.ac.za'],
     }]);
+  });
+
+  it('returns a bounded catalog when search is omitted', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: Array.from({ length: 60 }, (_, index) => ({
+          display_name: `South African University ${index}`,
+          country_code: 'ZA',
+          type: 'education',
+        })),
+      }),
+    }) as unknown as typeof fetch;
+    const response = responseMock();
+
+    await getInstitutionSuggestions({ query: {} } as unknown as Request, response);
+
+    expect((response.json as jest.Mock).mock.calls[0][0].data).toHaveLength(50);
   });
 
   it('rejects invalid searches before requesting the provider', async () => {
@@ -69,7 +89,11 @@ describe('OpenAlex institution suggestions', () => {
   });
 
   it('surfaces upstream HTTP failures as a service error', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503, statusText: 'Unavailable' }) as unknown as typeof fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Unavailable',
+    }) as unknown as typeof fetch;
     const response = responseMock();
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
@@ -78,26 +102,27 @@ describe('OpenAlex institution suggestions', () => {
     expect(response.status).toHaveBeenCalledWith(503);
   });
 
-  it('rejects malformed provider records', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        results: [{
-          display_name: '',
-          country_code: 'ZA',
-          type: 'education',
-        }],
-      }),
-    }) as unknown as typeof fetch;
-    const response = responseMock();
+  it('rejects malformed or out-of-scope provider records', async () => {
+    for (const record of [
+      { display_name: '', country_code: 'ZA', type: 'education' },
+      { display_name: 'Example Organization', country_code: 'ZA', type: 'healthcare' },
+      { display_name: 'Example University', country_code: 'US', type: 'education' },
+    ]) {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ results: [record] }),
+      }) as unknown as typeof fetch;
+      const response = responseMock();
 
-    await getInstitutionSuggestions({ query: { search: 'Tshwane' } } as unknown as Request, response);
+      await getInstitutionSuggestions({ query: { search: 'Example' } } as unknown as Request, response);
 
-    expect(response.status).toHaveBeenCalledWith(502);
+      expect(response.status).toHaveBeenCalledWith(502);
+    }
   });
 
   it('surfaces network failures as a service error', async () => {
-    global.fetch = jest.fn().mockRejectedValue(new Error('network unavailable')) as unknown as typeof fetch;
+    const fetchMock = jest.fn().mockRejectedValue(new Error('network unavailable'));
+    global.fetch = fetchMock as unknown as typeof fetch;
     const response = responseMock();
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
 

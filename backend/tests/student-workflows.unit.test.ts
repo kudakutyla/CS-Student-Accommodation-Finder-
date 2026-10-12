@@ -132,10 +132,14 @@ describe('student decision workflow authorization', () => {
 
     expect(tx.report.update).toHaveBeenCalledWith({
       where: { id: 'report-1' },
-      data: { status: 'IN_REVIEW', adminReviewNote: 'We are checking the listing details.' },
+      data: { status: 'IN_REVIEW' },
     });
     expect(tx.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ action: 'UPDATE_REPORT_STATUS', targetId: 'report-1' }),
+      data: expect.objectContaining({
+        action: 'UPDATE_REPORT_STATUS',
+        targetId: 'report-1',
+        description: expect.stringContaining('We are checking the listing details.'),
+      }),
     }));
     expect(tx.notification.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({

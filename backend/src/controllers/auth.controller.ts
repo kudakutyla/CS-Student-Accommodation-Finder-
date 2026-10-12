@@ -1,12 +1,24 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/prisma';
 import { registerSchema, loginSchema } from '../validators/auth.validator';
 import { sendSuccess, sendError } from '../utils/response';
 import { UserRole } from '@prisma/client';
+import { z } from 'zod';
+import { isPasswordResetEmailConfigured, sendPasswordResetEmail } from '../utils/password-reset-email';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-dev-only-32char-long';
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Enter a valid email address.').transform((email) => email.toLowerCase()),
+});
+const resetPasswordSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/i, 'This password reset link is invalid or expired.'),
+  password: z.string().min(8, 'Password must be at least 8 characters.').max(128),
+});
+const resetRequestMessage = 'If an account exists for that email, a password reset link will be sent.';
+const minimumResetRequestDurationMs = 350;
 
 function generateToken(userId: string, role: UserRole, email: string): string {
   return jwt.sign(
@@ -176,4 +188,98 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 
 export async function logout(_req: Request, res: Response): Promise<void> {
   sendSuccess(res, null, 'Logged out successfully');
+}
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  const requestStartedAt = Date.now();
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendError(res, parsed.error.errors[0].message, 400);
+    return;
+  }
+
+  if (!isPasswordResetEmailConfigured()) {
+    console.error('Password reset email is unavailable because SMTP configuration is incomplete.');
+    await delayUntilMinimumResetResponse(requestStartedAt);
+    sendSuccess(res, null, resetRequestMessage, 202);
+    return;
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { id: true, email: true },
+    });
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+      await prisma.$transaction([
+        prisma.passwordResetToken.deleteMany({
+          where: { userId: user.id, OR: [{ expiresAt: { lte: new Date() } }, { usedAt: { not: null } }] },
+        }),
+        prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash, expiresAt } }),
+      ]);
+
+      void sendPasswordResetEmail(user.email, token).catch(() => {
+        console.error('Password reset email delivery failed; check SMTP configuration and provider logs.');
+      });
+    }
+    await delayUntilMinimumResetResponse(requestStartedAt);
+    sendSuccess(res, null, resetRequestMessage, 202);
+  } catch (error) {
+    console.error('forgotPassword error:', error);
+    sendError(res, 'Unable to process the password reset request right now.', 503);
+  }
+
+  async function delayUntilMinimumResetResponse(requestStartedAt: number): Promise<void> {
+    const remaining = minimumResetRequestDurationMs - (Date.now() - requestStartedAt);
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+  }
+}
+
+export async function resetPassword(req: Request, res: Response): Promise<void> {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendError(res, parsed.error.errors[0].message, 400);
+    return;
+  }
+
+  try {
+    const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
+    const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+    const now = new Date();
+    const reset = await prisma.$transaction(async (transaction) => {
+      const resetToken = await transaction.passwordResetToken.findUnique({
+        where: { tokenHash },
+        select: { id: true, userId: true, expiresAt: true, usedAt: true },
+      });
+      if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= now) return false;
+
+      const consumed = await transaction.passwordResetToken.updateMany({
+        where: { id: resetToken.id, tokenHash, usedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (consumed.count !== 1) return false;
+
+      await transaction.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
+      });
+      await transaction.passwordResetToken.deleteMany({
+        where: { userId: resetToken.userId, id: { not: resetToken.id } },
+      });
+      return true;
+    });
+
+    if (!reset) {
+      sendError(res, 'This password reset link is invalid or expired.', 400);
+      return;
+    }
+    sendSuccess(res, null, 'Your password has been reset. You can now log in.');
+  } catch (error) {
+    console.error('resetPassword error:', error);
+    sendError(res, 'Unable to reset your password right now.', 500);
+  }
 }

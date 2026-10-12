@@ -13,6 +13,9 @@ Backend variables:
 - `CLIENT_URL`: allowed deployed frontend origin. For production, set this to
   `https://cs-student-accommodation-finder.vercel.app`.
 - `NODE_ENV`: set to `production` in the deployed backend.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`:
+	private SMTP transport and sender settings used for password reset email. Do not put
+	these values in source control or browser environment variables.
 - `UPLOAD_DIR`: optional private upload path. The default is `backend/uploads`, which is ignored
 	by Git; production deployments must mount durable storage at this path.
 
@@ -94,6 +97,20 @@ contributors wherever geographic suggestions are presented.
 
 Local uploads use a filesystem-backed adapter; production must provide durable storage for
 `UPLOAD_DIR` rather than an ephemeral container filesystem.
+
+Campus creation and property listing submission require `GOOGLE_MAPS_API_KEY` to be configured
+in the backend environment. Enable the Geocoding API and Routes API for the key, restrict it to
+the backend deployment, and configure it in each local/deployment secret store. Without this key,
+the API must reject address operations clearly rather than inventing or falling back to coordinates.
+On Render, add the key under the `student-accommodation-backend` web service's Environment
+settings, then redeploy the service. The value is intentionally not stored in `render.yaml`,
+frontend environment variables, or source control.
+
+Forgot-password mail uses the SMTP variables above and `CLIENT_URL` to build reset links.
+Configure a verified sender and a backend-only SMTP credential for every environment. Password
+reset requests return the same public response for known and unknown email addresses; check backend
+operational logs and SMTP provider delivery logs when an expected email is not received. Reset
+tokens are short-lived and must never be logged or shared.
 
 ## Seed Policy
 

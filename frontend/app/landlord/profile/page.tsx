@@ -12,8 +12,11 @@ export default function LandlordProfilePage() {
   const [preview, setPreview] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [detailsError, setDetailsError] = useState('');
+  const [detailsSuccess, setDetailsSuccess] = useState('');
 
   useEffect(() => () => { if (preview.startsWith('blob:')) URL.revokeObjectURL(preview); }, [preview]);
 
@@ -39,6 +42,27 @@ export default function LandlordProfilePage() {
       setError(err instanceof Error ? err.message : 'Unable to update your profile picture.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDetailsSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingDetails(true);
+    setDetailsError('');
+    setDetailsSuccess('');
+    const fields = new FormData(event.currentTarget);
+    try {
+      const response = await authApi.updateProfile({
+        name: String(fields.get('name') || ''),
+        email: String(fields.get('email') || ''),
+        phone: String(fields.get('phone') || '').trim() || null,
+      });
+      updateUser(response.data.user);
+      setDetailsSuccess('Profile settings saved.');
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Unable to save profile settings.');
+    } finally {
+      setSavingDetails(false);
     }
   };
 
@@ -69,7 +93,18 @@ export default function LandlordProfilePage() {
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-6">
+              <form onSubmit={handleDetailsSubmit} className="space-y-4">
+                <h2 className="font-serif text-2xl text-[var(--charcoal)]">Profile settings</h2>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Name<input name="name" required minLength={2} maxLength={100} defaultValue={user.name} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Email<input name="email" type="email" required maxLength={254} defaultValue={user.email} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Phone<input name="phone" type="tel" maxLength={30} defaultValue={user.phone || ''} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
+                {detailsError ? <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{detailsError}</p> : null}
+                {detailsSuccess ? <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{detailsSuccess}</p> : null}
+                <button type="submit" disabled={savingDetails} className="rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{savingDetails ? 'Saving...' : 'Save profile settings'}</button>
+              </form>
+
+              <form onSubmit={handleSubmit} className="space-y-5 border-t border-[var(--beige)] pt-6">
               <div>
                 <label htmlFor="profilePicture" className="mb-2 block text-sm font-semibold text-[var(--charcoal)]">Profile picture</label>
                 <input
@@ -97,7 +132,8 @@ export default function LandlordProfilePage() {
               >
                 {saving ? 'Uploading...' : 'Upload profile picture'}
               </button>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       </div>

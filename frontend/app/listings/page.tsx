@@ -117,10 +117,11 @@ function ListingsPageContent() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--beige)] pb-5">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 rounded-[28px] border border-[var(--beige)] bg-[var(--warm-white)] p-6 shadow-sm">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Student discovery</p>
-          <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Find homes</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">{user?.role === 'LANDLORD' ? 'Market overview' : 'Search'}</p>
+        <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">{user?.role === 'LANDLORD' ? 'Explore the student accommodation market' : 'Find your perfect student home'}</h1>
+        {user?.role === 'LANDLORD' ? <p className="mt-3 text-sm text-[var(--text-muted)]">Compare approved student accommodation near campus and see how your properties fit the local market.</p> : null}
         </div>
         {user?.role === 'STUDENT' ? <Link href="/student/favourites" className="text-sm font-semibold text-[var(--brown-dark)] underline-offset-4 hover:underline">Saved homes</Link> : null}
       </header>
@@ -217,7 +218,7 @@ function ListingsPageContent() {
           </div> : null}
         </aside>
 
-        <main className="space-y-5">
+        <div className="space-y-5">
           {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setRetryKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
           <div className="flex items-center justify-between rounded-[28px] border border-[var(--beige)] bg-white p-5 shadow-sm">
             <p className="text-sm text-[var(--text-muted)]">{loading ? 'Loading listings...' : `${items.length} homes found`}</p>
@@ -266,7 +267,7 @@ function ListingsPageContent() {
               ))
             )}
           </div>
-        </main>
+        </div>
       </div>
     </main>
   );

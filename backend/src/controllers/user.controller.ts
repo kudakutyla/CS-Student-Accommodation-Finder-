@@ -4,7 +4,13 @@ import prisma from '../config/prisma';
 import { sendSuccess, sendError } from '../utils/response';
 import { deleteStoredFile, storeUploadedFile } from '../utils/file-storage';
 
-const updateCurrentUserSchema = z.object({}).strict();
+const updateCurrentUserSchema = z.object({
+  name: z.string().trim().min(2, 'Name must be at least 2 characters.').max(100).optional(),
+  email: z.string().trim().email('Enter a valid email address.').max(254).transform((email) => email.toLowerCase()).optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
+}).strict().refine((data) => Object.keys(data).length > 0, {
+  message: 'Provide at least one profile field to update.',
+});
 
 export async function getCurrentUserProfile(req: Request, res: Response): Promise<void> {
   try {
@@ -53,8 +59,30 @@ export async function updateCurrentUserProfile(req: Request, res: Response): Pro
       return;
     }
 
-    sendError(res, 'Use the profile picture upload endpoint to change your photo.', 400);
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        ...parsed.data,
+        ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone || null } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        profilePicture: true,
+        role: true,
+        isVerified: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+    sendSuccess(res, { user }, 'Profile updated successfully');
   } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      sendError(res, 'An account with this email address already exists.', 409);
+      return;
+    }
     console.error('updateCurrentUserProfile error:', error);
     sendError(res, 'Failed to update profile', 500);
   }

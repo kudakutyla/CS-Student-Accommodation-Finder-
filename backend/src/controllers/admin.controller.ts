@@ -45,7 +45,7 @@ export async function getPendingListings(req: Request, res: Response): Promise<v
 
 export async function getAdminListings(req: Request, res: Response): Promise<void> {
   const parsed = z.object({
-    status: z.enum(['ALL', 'PENDING', 'APPROVED']),
+    status: z.enum(['ALL', 'DRAFT', 'PENDING', 'APPROVED', 'REJECTED']).optional(),
   }).safeParse(req.query);
   if (!parsed.success) {
     sendError(res, parsed.error.errors[0].message, 400);
@@ -54,10 +54,12 @@ export async function getAdminListings(req: Request, res: Response): Promise<voi
 
   try {
     const listings = await prisma.listing.findMany({
-      where: parsed.data.status === 'ALL' ? {} : { approvalStatus: parsed.data.status },
+      where: parsed.data.status && parsed.data.status !== 'ALL'
+        ? { approvalStatus: parsed.data.status }
+        : {},
       include: {
         photos: true,
-        campus: { select: { id: true, name: true, location: true } },
+        campus: true,
         owner: {
           select: {
             id: true,
@@ -74,7 +76,7 @@ export async function getAdminListings(req: Request, res: Response): Promise<voi
     sendSuccess(res, listings);
   } catch (error) {
     console.error('getAdminListings error:', error);
-    sendError(res, 'Failed to fetch listings', 500);
+    sendError(res, 'Failed to fetch admin listings', 500);
   }
 }
 
@@ -197,6 +199,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       totalListings,
       pendingListings,
       approvedListings,
+      draftListings,
+      rejectedListings,
       totalCampuses,
     ] = await Promise.all([
       prisma.user.count({ where: { role: 'STUDENT' } }),
@@ -205,6 +209,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       prisma.listing.count(),
       prisma.listing.count({ where: { approvalStatus: 'PENDING' } }),
       prisma.listing.count({ where: { approvalStatus: 'APPROVED' } }),
+      prisma.listing.count({ where: { approvalStatus: 'DRAFT' } }),
+      prisma.listing.count({ where: { approvalStatus: 'REJECTED' } }),
       prisma.campus.count({ where: { isActive: true } }),
     ]);
 
@@ -215,6 +221,8 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
       totalListings,
       pendingListings,
       approvedListings,
+      draftListings,
+      rejectedListings,
       totalCampuses,
     });
   } catch (error) {
@@ -223,10 +231,23 @@ export async function getAdminStats(_req: Request, res: Response): Promise<void>
   }
 }
 
-export async function getAdminUsers(_req: Request, res: Response): Promise<void> {
+export async function getAdminUsers(req: Request, res: Response): Promise<void> {
   try {
+    const filters = z.object({
+      role: z.enum(['STUDENT', 'LANDLORD']).optional(),
+      verified: z.enum(['true', 'false']).optional(),
+    }).safeParse(req.query);
+    if (!filters.success) {
+      sendError(res, filters.error.errors[0].message, 400);
+      return;
+    }
     const users = await prisma.user.findMany({
-      where: { role: { in: ['STUDENT', 'LANDLORD'] } },
+      where: {
+        role: filters.data.role ?? { in: ['STUDENT', 'LANDLORD'] },
+        ...(filters.data.verified !== undefined
+          ? { isVerified: filters.data.verified === 'true' }
+          : {}),
+      },
       select: {
         id: true,
         name: true,
