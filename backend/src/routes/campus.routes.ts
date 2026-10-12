@@ -7,6 +7,7 @@ import {
   getAdminInstitutions,
   getInstitutionSuggestions,
   getCampusSuggestions,
+  getCampusAddressSuggestions,
   createInstitution,
   updateInstitution,
   createCampus,
@@ -19,6 +20,7 @@ const router = Router();
 
 // Public / Authenticated read
 router.get('/institutions/suggestions', authenticate, authorize('ADMIN'), getInstitutionSuggestions);
+router.get('/address-suggestions', authenticate, authorize('ADMIN'), getCampusAddressSuggestions);
 router.get('/suggestions', authenticate, authorize('ADMIN'), getCampusSuggestions);
 router.get('/institutions/manage', authenticate, authorize('ADMIN'), getAdminInstitutions);
 router.get('/institutions', getInstitutions);

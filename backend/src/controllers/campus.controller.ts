@@ -13,6 +13,7 @@ import {
   calculateRouteDistanceKm,
   LocationServiceError,
   resolveAddressCoordinates,
+  searchCampusAddressSuggestions,
   searchInstitutionCampuses,
 } from '../utils/geocode';
 
@@ -161,6 +162,34 @@ export async function getCampusSuggestions(req: Request, res: Response): Promise
     }
     console.error('getCampusSuggestions error:', error);
     sendError(res, 'Failed to search South African campuses.', 500);
+  }
+}
+
+export async function getCampusAddressSuggestions(req: Request, res: Response): Promise<void> {
+  const query = z.object({
+    address: z.string().trim().min(3).max(300),
+    locality: z.string().trim().min(2).max(160),
+    campusName: z.string().trim().max(160).optional().default(''),
+  }).safeParse(req.query);
+  if (!query.success) {
+    sendError(res, query.error.errors[0].message, 400);
+    return;
+  }
+
+  try {
+    const suggestions = await searchCampusAddressSuggestions(
+      query.data.address,
+      query.data.locality,
+      query.data.campusName
+    );
+    sendSuccess(res, suggestions);
+  } catch (error) {
+    if (error instanceof LocationServiceError) {
+      sendError(res, error.message, error.statusCode);
+      return;
+    }
+    console.error('getCampusAddressSuggestions error:', error);
+    sendError(res, 'Failed to search campus addresses.', 500);
   }
 }
 
@@ -338,6 +367,7 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
     const coordinates = await resolveAddressCoordinates(address, {
       locality: location,
       fallbackQuery: name,
+      label: 'campus',
     });
 
     const existing = await prisma.campus.findUnique({

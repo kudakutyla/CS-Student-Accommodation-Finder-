@@ -2,7 +2,9 @@ import {
   calculateRouteDistanceKm,
   resolveAddressCoordinates,
   resolveListingLocation,
+  searchCampusAddressSuggestions,
   searchInstitutionCampuses,
+  searchNearbyAccommodationLocations,
 } from '../src/utils/geocode';
 
 const originalFetch = global.fetch;
@@ -65,6 +67,154 @@ describe('OpenStreetMap address and route services', () => {
     } as Response);
 
     await expect(resolveAddressCoordinates('unknown address')).rejects.toThrow(/could not be resolved/i);
+  });
+
+  it('finds a campus address using locality context and returns only formatted addresses', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-26.2',
+          lon: '28.0',
+          display_name: 'University Road, Johannesburg, Mpumalanga, South Africa',
+        }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-25.7479',
+          lon: '28.2293',
+          display_name: 'University Road, Hatfield, Pretoria, Gauteng, South Africa',
+        }],
+      } as Response);
+
+    await expect(searchCampusAddressSuggestions(
+      'University Road',
+      'Pretoria, Gauteng',
+      'Example University'
+    )).resolves.toEqual([{
+      address: 'University Road, Hatfield, Pretoria, Gauteng, South Africa',
+    }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('q'))
+      .toBe('University Road, Pretoria, Gauteng, South Africa');
+  });
+
+  it('uses the campus name as address lookup fallback and rejects other localities', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-26.2',
+          lon: '28.0',
+          display_name: 'Campus, Johannesburg, Mpumalanga, South Africa',
+        }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-25.7479',
+          lon: '28.2293',
+          display_name: 'Example University, Pretoria, Gauteng, South Africa',
+        }],
+      } as Response);
+
+    await expect(searchCampusAddressSuggestions(
+      'Campus',
+      'Pretoria, Gauteng',
+      'Example University'
+    )).resolves.toEqual([{
+      address: 'Example University, Pretoria, Gauteng, South Africa',
+    }]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get('q'))
+      .toBe('Example University, Pretoria, Gauteng, South Africa');
+  });
+
+  it('finds distinct accommodation addresses in the campus locality and bounded map area', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            lat: '-25.751',
+            lon: '28.201',
+            display_name: 'Student Hostel, Pretoria, Gauteng, South Africa',
+            type: 'hostel',
+          },
+          {
+            lat: '-25.752',
+            lon: '28.202',
+            display_name: 'Another Hostel, Durban, KwaZulu-Natal, South Africa',
+            type: 'hostel',
+          },
+        ],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-25.751',
+          lon: '28.201',
+          display_name: 'Student Hostel, Pretoria, Gauteng, South Africa',
+          type: 'hostel',
+        }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-25.752',
+          lon: '28.201',
+          display_name: 'Campus Apartments, Hatfield, Pretoria, Gauteng, South Africa',
+          type: 'apartments',
+        }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response);
+
+    await expect(searchNearbyAccommodationLocations({
+      name: 'Example Campus',
+      locality: 'Pretoria, Gauteng',
+      latitude: -25.75,
+      longitude: 28.2,
+    }, 2)).resolves.toEqual([
+      {
+        address: 'Student Hostel, Pretoria, Gauteng, South Africa',
+        latitude: -25.751,
+        longitude: 28.201,
+      },
+      {
+        address: 'Campus Apartments, Hatfield, Pretoria, Gauteng, South Africa',
+        latitude: -25.752,
+        longitude: 28.201,
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [request] of fetchMock.mock.calls) {
+      const url = new URL(String(request));
+      expect(url.searchParams.get('bounded')).toBe('1');
+      expect(url.searchParams.get('viewbox')).toBeTruthy();
+    }
+  });
+
+  it('does not try contextual address suggestions after a provider error', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+
+    await expect(searchCampusAddressSuggestions(
+      'University Road',
+      'Pretoria, Gauteng',
+      'Example University'
+    )).rejects.toThrow(/busy or temporarily unavailable/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('searches Overpass for South African places associated with the selected institution', async () => {
@@ -238,6 +388,61 @@ describe('OpenStreetMap address and route services', () => {
     expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('q')).toBe('University campus');
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('q')).toBe('University campus, Kimberley, Northern Cape, South Africa');
     expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get('q')).toBe('Sol Plaatje University, Kimberley, Northern Cape, South Africa');
+  });
+
+  it('accepts a campus result matching the region when the city is named differently', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-25.7479',
+          lon: '28.2293',
+          display_name: 'University campus, City of Tshwane, Gauteng, South Africa',
+        }],
+      } as Response);
+
+    await expect(resolveAddressCoordinates('University campus', {
+      locality: 'Pretoria, Gauteng',
+      fallbackQuery: 'Example University',
+      label: 'campus',
+    })).resolves.toEqual({ latitude: -25.7479, longitude: 28.2293 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('q'))
+      .toBe('University campus, Pretoria, Gauteng, South Africa');
+  });
+
+  it('rejects a campus result that matches neither city nor region', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-26.2',
+          lon: '28.0',
+          display_name: 'University campus, Johannesburg, Gauteng, South Africa',
+        }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as Response);
+
+    await expect(resolveAddressCoordinates('University campus', {
+      locality: 'Kimberley, Northern Cape',
+      fallbackQuery: 'Sol Plaatje University',
+      label: 'campus',
+    })).rejects.toThrow(/could not find this campus/i);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('retries an unmatched property address with the selected campus locality', async () => {

@@ -13,16 +13,26 @@ export class LocationServiceError extends Error {
   }
 }
 
-type NominatimResult = { lat?: string; lon?: string; display_name?: string };
+type NominatimResult = {
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+  category?: string;
+  type?: string;
+};
 export type CampusPlaceSuggestion = {
   name: string;
   address: string;
   location: string;
 };
+export type CampusAddressSuggestion = {
+  address: string;
+};
 type OsrmResponse = {
   code?: string;
   routes?: Array<{ distance?: number }>;
 };
+export type NearbyAccommodationLocation = Coordinates & { address: string };
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
@@ -164,12 +174,20 @@ export async function searchInstitutionCampuses(
   return parseCampusSuggestions(payload, institutionNames);
 }
 
-async function searchAddress(query: string): Promise<NominatimResult[]> {
+async function searchAddress(
+  query: string,
+  viewbox?: string,
+  resultLimit = 5
+): Promise<NominatimResult[]> {
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set('q', query);
   url.searchParams.set('format', 'jsonv2');
-  url.searchParams.set('limit', '5');
+  url.searchParams.set('limit', String(resultLimit));
   url.searchParams.set('countrycodes', 'za');
+  if (viewbox) {
+    url.searchParams.set('viewbox', viewbox);
+    url.searchParams.set('bounded', '1');
+  }
 
   let response: Response;
   try {
@@ -193,6 +211,124 @@ async function searchAddress(query: string): Promise<NominatimResult[]> {
   }
 }
 
+function hasValidCoordinates(result: NominatimResult): boolean {
+  const latitude = typeof result.lat === 'string' ? Number(result.lat) : Number.NaN;
+  const longitude = typeof result.lon === 'string' ? Number(result.lon) : Number.NaN;
+  return typeof result.lat === 'string' && result.lat.trim() !== '' &&
+    typeof result.lon === 'string' && result.lon.trim() !== '' &&
+    Number.isFinite(latitude) && Number.isFinite(longitude) &&
+    latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+}
+
+function distanceBetweenCoordinatesKm(origin: Coordinates, destination: Coordinates): number {
+  const radians = (degrees: number): number => degrees * Math.PI / 180;
+  const latitudeDelta = radians(destination.latitude - origin.latitude);
+  const longitudeDelta = radians(destination.longitude - origin.longitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(radians(origin.latitude)) * Math.cos(radians(destination.latitude)) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+export async function searchNearbyAccommodationLocations(
+  campus: Coordinates & { name: string; locality: string },
+  limit = 12
+): Promise<NearbyAccommodationLocation[]> {
+  const latitudeDelta = 0.08;
+  const longitudeDelta = latitudeDelta / Math.max(Math.cos(campus.latitude * Math.PI / 180), 0.2);
+  const viewbox = [
+    campus.longitude - longitudeDelta,
+    campus.latitude + latitudeDelta,
+    campus.longitude + longitudeDelta,
+    campus.latitude - latitudeDelta,
+  ].join(',');
+  const localityParts = campus.locality.split(',').map(normalizeTag).filter(Boolean);
+  const accommodationTypes = new Set([
+    'hostel',
+    'dormitory',
+    'student_accommodation',
+    'student_residence',
+    'apartments',
+    'apartment',
+    'guest_house',
+    'boarding_house',
+    'house',
+    'residential',
+  ]);
+  const results = new Map<string, NearbyAccommodationLocation>();
+
+  for (const query of [
+    'hostel',
+    'dormitory',
+    'student accommodation',
+    'apartment',
+    'student residence',
+    'guest house',
+    'boarding house',
+    'house',
+    'residential building',
+  ]) {
+    for (const result of await searchAddress(query, viewbox, 20)) {
+      const address = result.display_name?.trim();
+      if (!address || !hasValidCoordinates(result)) continue;
+      const normalizedAddress = normalizeTag(address);
+      if (!localityParts.some((part) => normalizedAddress.includes(part))) continue;
+      if (!accommodationTypes.has(normalizeTag(result.type ?? ''))) continue;
+      const coordinates = {
+        latitude: Number(result.lat),
+        longitude: Number(result.lon),
+      };
+      if (distanceBetweenCoordinatesKm(campus, coordinates) > 8) continue;
+      if (!results.has(normalizedAddress)) results.set(normalizedAddress, { address, ...coordinates });
+    }
+    if (results.size >= limit) break;
+  }
+
+  return [...results.values()]
+    .sort((left, right) =>
+      distanceBetweenCoordinatesKm(campus, left) - distanceBetweenCoordinatesKm(campus, right)
+    )
+    .slice(0, limit);
+}
+
+export async function searchCampusAddressSuggestions(
+  address: string,
+  locality: string,
+  campusName: string
+): Promise<CampusAddressSuggestion[]> {
+  const cleanAddress = address.trim();
+  const cleanLocality = locality.trim();
+  const cleanCampusName = campusName.trim();
+  if (!cleanAddress || !cleanLocality) {
+    throw new LocationServiceError('Enter an address and city or region to search.', 422);
+  }
+
+  const queries = [
+    cleanAddress,
+    `${cleanAddress}, ${cleanLocality}, South Africa`,
+    ...(cleanCampusName ? [`${cleanCampusName}, ${cleanLocality}, South Africa`] : []),
+  ];
+  const localityParts = cleanLocality.split(',').map(normalizeTag).filter(Boolean);
+
+  for (const query of [...new Set(queries)]) {
+    const results = await searchAddress(query);
+    const suggestions = new Map<string, CampusAddressSuggestion>();
+    for (const result of results) {
+      const displayName = result.display_name?.trim();
+      if (!displayName || !hasValidCoordinates(result)) continue;
+      const normalizedDisplayName = normalizeTag(displayName);
+      if (!localityParts.some((part) => normalizedDisplayName.includes(part))) continue;
+      if (!suggestions.has(normalizedDisplayName)) {
+        suggestions.set(normalizedDisplayName, { address: displayName });
+      }
+    }
+    if (suggestions.size > 0) return [...suggestions.values()].slice(0, 5);
+  }
+
+  return [];
+}
+
 export async function resolveAddressCoordinates(
   address: string,
   context?: AddressSearchContext
@@ -213,30 +349,19 @@ export async function resolveAddressCoordinates(
     const results = await searchAddress(query);
     for (const result of results) {
       if (context?.locality.trim()) {
-        const normalizedDisplayName = result.display_name?.toLocaleLowerCase();
-        const primaryLocality = context.locality.split(',')[0].trim().toLocaleLowerCase();
-        if (!normalizedDisplayName || !primaryLocality || !normalizedDisplayName.includes(primaryLocality)) {
+        const normalizedDisplayName = result.display_name ? normalizeTag(result.display_name) : '';
+        const localityParts = context.locality.split(',').map(normalizeTag).filter(Boolean);
+        const acceptedLocalities = context.label === 'campus' ? localityParts : localityParts.slice(0, 1);
+        if (!normalizedDisplayName || !acceptedLocalities.some((locality) => normalizedDisplayName.includes(locality))) {
           continue;
         }
       }
+      if (!hasValidCoordinates(result)) continue;
       const rawLatitude = result.lat;
       const rawLongitude = result.lon;
       const latitude = typeof rawLatitude === 'string' ? Number(rawLatitude) : Number.NaN;
       const longitude = typeof rawLongitude === 'string' ? Number(rawLongitude) : Number.NaN;
-      if (
-        typeof rawLatitude === 'string' &&
-        rawLatitude.trim() &&
-        typeof rawLongitude === 'string' &&
-        rawLongitude.trim() &&
-        Number.isFinite(latitude) &&
-        Number.isFinite(longitude) &&
-        latitude >= -90 &&
-        latitude <= 90 &&
-        longitude >= -180 &&
-        longitude <= 180
-      ) {
-        return { latitude, longitude };
-      }
+      return { latitude, longitude };
     }
   }
 
@@ -250,7 +375,7 @@ export async function resolveAddressCoordinates(
   );
 }
 
-async function calculateRouteDistanceBetweenCoordinates(
+export async function calculateRouteDistanceBetweenCoordinates(
   origin: Coordinates,
   destination: Coordinates
 ): Promise<number> {

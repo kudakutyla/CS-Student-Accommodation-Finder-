@@ -10,6 +10,9 @@
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:seed": "tsx prisma/seed.ts",
+    "campuses:import": "tsx prisma/import-campus-catalog.ts",
+    "campuses:catalog-import": "tsx prisma/import-verified-campus-records.ts",
+    "properties:demo-import": "tsx prisma/import-demo-properties.ts",
     "test": "jest --runInBand --detectOpenHandles"
   },
   "prisma": {
