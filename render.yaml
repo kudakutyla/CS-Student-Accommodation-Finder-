@@ -16,7 +16,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CLIENT_URL
-        value: https://cs-student-accommodation-finder.vercel.app
+        value: https://cs-student-accommodation-finder-mbc.vercel.app
       - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: SMTP_HOST
