@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { AuthGuard } from '../../../../components/auth-guard';
 import { campusApi } from '../../../../lib/api';
-import type { CampusSuggestion, Institution } from '../../../../types';
+import type { CampusAddressSuggestion, CampusSuggestion, Institution } from '../../../../types';
 
 export default function AddCampusPage() {
   return (
@@ -27,6 +27,9 @@ function AddCampusPageContent() {
   const [campusSuggestions, setCampusSuggestions] = useState<CampusSuggestion[]>([]);
   const [searchingCampuses, setSearchingCampuses] = useState(false);
   const [campusSearchError, setCampusSearchError] = useState('');
+  const [addressSuggestions, setAddressSuggestions] = useState<CampusAddressSuggestion[]>([]);
+  const [searchingAddresses, setSearchingAddresses] = useState(false);
+  const [addressSearchMessage, setAddressSearchMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +66,32 @@ function AddCampusPageContent() {
       setCampusSearchError(err instanceof Error ? err.message : 'Unable to search campus suggestions. You can still enter the details manually.');
     } finally {
       setSearchingCampuses(false);
+    }
+  }
+
+  async function searchAddresses() {
+    if (address.trim().length < 3 || location.trim().length < 2) {
+      setAddressSuggestions([]);
+      setAddressSearchMessage('Enter part of the address and its city or region before searching.');
+      return;
+    }
+    setSearchingAddresses(true);
+    setAddressSuggestions([]);
+    setAddressSearchMessage('');
+    try {
+      const response = await campusApi.getCampusAddressSuggestions(
+        address.trim(),
+        location.trim(),
+        name.trim()
+      );
+      setAddressSuggestions(response.data);
+      if (response.data.length === 0) {
+        setAddressSearchMessage('No matching address was found. Try adding a suburb, city, or campus name.');
+      }
+    } catch (err) {
+      setAddressSearchMessage(err instanceof Error ? err.message : 'Unable to search for this address.');
+    } finally {
+      setSearchingAddresses(false);
     }
   }
 
@@ -137,6 +166,8 @@ function AddCampusPageContent() {
                       setName(suggestion.name);
                       setAddress(suggestion.address);
                       if (suggestion.location) setLocation(suggestion.location);
+                      setAddressSuggestions([]);
+                      setAddressSearchMessage('');
                       setCampusSuggestions([]);
                       setCampusSearchError('');
                     }}
@@ -170,9 +201,26 @@ function AddCampusPageContent() {
           </label>
           <label className="grid gap-1 text-xs font-semibold sm:col-span-2">
             Full campus street address
-            <input required minLength={5} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street, suburb, city, postal code" className="border border-[var(--beige)] px-3 py-2.5 text-sm font-normal" />
+            <input required minLength={5} value={address} onChange={(event) => { setAddress(event.target.value); setAddressSuggestions([]); setAddressSearchMessage(''); }} placeholder="Street or campus name, suburb, city" className="border border-[var(--beige)] px-3 py-2.5 text-sm font-normal" />
           </label>
-          <p className="text-xs text-[var(--text-muted)] sm:col-span-2">Enter the street address and suburb/city for accurate geocoding. If the exact street address is not listed, the campus name and city are also used to find it.</p>
+          <div className="sm:col-span-2">
+            <button type="button" onClick={() => void searchAddresses()} disabled={searchingAddresses || loading} className="border border-[var(--beige)] px-3 py-2 text-sm font-semibold disabled:opacity-50">
+              {searchingAddresses ? 'Searching addresses...' : 'Find matching addresses'}
+            </button>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">Enter a street, suburb, or campus name and the city/region, then choose a matching OpenStreetMap address. You can also use a mapped campus option above.</p>
+            {addressSearchMessage ? <p role="status" className="mt-2 text-sm text-[var(--text-muted)]">{addressSearchMessage}</p> : null}
+            {addressSuggestions.length > 0 ? (
+              <ul className="mt-2 divide-y divide-[var(--beige)] border border-[var(--beige)]">
+                {addressSuggestions.map((suggestion, index) => (
+                  <li key={`${suggestion.address}-${index}`}>
+                    <button type="button" onClick={() => { setAddress(suggestion.address); setAddressSuggestions([]); setAddressSearchMessage('Address selected.'); }} className="w-full px-3 py-2 text-left text-sm hover:bg-[var(--cream)]">
+                      {suggestion.address}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <div className="flex flex-wrap gap-3 sm:col-span-2">
             <button disabled={saving || loading || !selectedInstitutionExists} className="bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : 'Add campus'}</button>
             <Link href="/admin/campuses" className="border border-[var(--beige)] px-4 py-2.5 text-sm font-semibold">Back to institution management</Link>

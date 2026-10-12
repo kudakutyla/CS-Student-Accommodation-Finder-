@@ -2,6 +2,7 @@ import {
   ApiResponse,
   AppNotification,
   Campus,
+  CampusAddressSuggestion,
   CampusSuggestion,
   Conversation,
   Favourite,
@@ -164,6 +165,10 @@ export const campusApi = {
   getCampusSuggestions: (institutionId: string) => {
     const query = new URLSearchParams({ institutionId });
     return apiFetch<CampusSuggestion[]>(`/campuses/suggestions?${query}`);
+  },
+  getCampusAddressSuggestions: (address: string, locality: string, campusName: string) => {
+    const query = new URLSearchParams({ address, locality, campusName });
+    return apiFetch<CampusAddressSuggestion[]>(`/campuses/address-suggestions?${query}`);
   },
 
   createCampus: (data: {

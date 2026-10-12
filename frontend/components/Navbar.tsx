@@ -31,7 +31,7 @@ export default function Navbar() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--text-muted)]">
-            {!isLoading && !isAuthenticated ? <Link
+            {!isLoading && (!isAuthenticated || pathname === '/') ? <Link
               href="/"
               className={`hover:text-[var(--charcoal)] transition-colors ${
                 pathname === '/' ? 'text-[var(--charcoal)] font-semibold' : ''

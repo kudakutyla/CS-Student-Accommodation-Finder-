@@ -76,6 +76,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return <main className="flex-1">{children}</main>;
   }
 
+  if (pathname === '/') {
+    return <><Navbar /><main className="flex-1">{children}</main></>;
+  }
+
   if (!role || !isAuthenticated || !user) {
     return <><Navbar /><main className="flex-1">{children}</main></>;
   }
