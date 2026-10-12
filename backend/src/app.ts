@@ -30,6 +30,7 @@ app.use(
   cors({
     origin: [
       clientUrl,
+      'https://cs-student-accommodation-finder-mbc.vercel.app',
       'https://cs-student-accommodation-finder.vercel.app',
       'http://localhost:3000',
       'http://127.0.0.1:3000',
