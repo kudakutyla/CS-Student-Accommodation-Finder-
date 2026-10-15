@@ -1,0 +1,339 @@
+{
+  "info": {
+    "_postman_id": "b32740c0-08a4-4f8d-9924-b68a95fb24b1",
+    "name": "Student Accommodation Finder API — GET and POST",
+    "description": "Import this collection into Postman. Set baseUrl (default: http://localhost:5000), adminEmail/adminPassword, landlordEmail/landlordPassword, and the record IDs required by requests. Register Student creates a test account and stores its token. Login requests store role-specific tokens. Writes create persistent data. Use a disposable development database. Campus/listing creation calls the public OpenStreetMap services; do not run repeatedly or in parallel.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "adminEmail", "value": "", "type": "string" },
+    { "key": "adminPassword", "value": "", "type": "string" },
+    { "key": "landlordEmail", "value": "", "type": "string" },
+    { "key": "landlordPassword", "value": "", "type": "string" },
+    { "key": "studentToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "landlordToken", "value": "", "type": "string" },
+    { "key": "studentId", "value": "", "type": "string" },
+    { "key": "institutionId", "value": "", "type": "string" },
+    { "key": "campusId", "value": "", "type": "string" },
+    { "key": "listingId", "value": "", "type": "string" },
+    { "key": "conversationId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET API health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health",
+            "description": "Public liveness check. Expected: HTTP 200 and success=true."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('success envelope', () => pm.expect(pm.response.json().success).to.eql(true));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Register a disposable student before running student-only calls. Admin and landlord credentials must be supplied as local Postman variables.",
+      "item": [
+        {
+          "name": "POST Register test student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Student {{$guid}}\",\n  \"email\": \"postman-student-{{$guid}}@example.com\",\n  \"password\": \"PostmanTestPass123!\",\n  \"role\": \"STUDENT\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Creates a unique disposable student account. Expected: HTTP 201; automatically saves the returned student token and ID."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.test('success envelope and student token', () => { pm.expect(body.success).to.eql(true); pm.expect(body.data.token).to.be.a('string'); pm.expect(body.data.user.role).to.eql('STUDENT'); });", "pm.collectionVariables.set('studentToken', body.data.token);", "pm.collectionVariables.set('studentId', body.data.user.id);"] } }]
+        },
+        {
+          "name": "POST Login admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Set adminEmail and adminPassword in the local Postman environment. Expected: HTTP 200; saves adminToken."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.test('admin login succeeds', () => { pm.expect(body.success).to.eql(true); pm.expect(body.data.user.role).to.eql('ADMIN'); });", "pm.collectionVariables.set('adminToken', body.data.token);"] } }]
+        },
+        {
+          "name": "POST Login verified landlord",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{landlordEmail}}\",\n  \"password\": \"{{landlordPassword}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Set credentials for an active, verified landlord in the local Postman environment. Needed for landlord-only listing calls."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.test('verified landlord login succeeds', () => { pm.expect(body.success).to.eql(true); pm.expect(body.data.user.role).to.eql('LANDLORD'); pm.expect(body.data.user.isVerified).to.eql(true); });", "pm.collectionVariables.set('landlordToken', body.data.token);"] } }]
+        },
+        {
+          "name": "POST Reject public admin registration",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should Not Become Admin\",\n  \"email\": \"public-admin-{{$guid}}@example.com\",\n  \"password\": \"PostmanTestPass123!\",\n  \"role\": \"ADMIN\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Negative authorization/business-rule test. Expected: HTTP 400; public callers cannot register admin accounts."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 400', () => pm.response.to.have.status(400));", "pm.test('registration rejected', () => pm.expect(pm.response.json().success).to.eql(false));"] } }]
+        },
+        {
+          "name": "GET Current authenticated user",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Requires studentToken from Register test student. Expected: HTTP 200 with the authenticated user."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('returns authenticated user', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.user.role).to.eql('STUDENT'); });"] } }]
+        },
+        {
+          "name": "GET Current profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }],
+            "url": "{{baseUrl}}/api/users/me",
+            "description": "Requires studentToken. Expected: HTTP 200; returned profile must not contain a password hash."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('profile excludes password hash', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.user).not.to.have.property('passwordHash'); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Campuses and institutions",
+      "item": [
+        {
+          "name": "GET Active institutions",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/campuses/institutions", "description": "Public read. Expected: HTTP 200 and an array of active institutions." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET Active campuses",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/campuses", "description": "Public read. Expected: HTTP 200 and an array of active campuses." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET Institution suggestions (admin)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/campuses/institutions/suggestions?search=tshwane", "description": "Requires adminToken. Calls the OpenAlex provider. Expected: HTTP 200, or a documented 503/502 if the provider is unavailable." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('documented response status', () => pm.expect([200, 502, 503]).to.include(pm.response.code));", "if (pm.response.code === 200) pm.test('suggestions are an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET Campus suggestions for institution (admin)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/campuses/suggestions?institutionId={{institutionId}}", "description": "Set institutionId to an active institution UUID. Requires adminToken and calls OpenStreetMap Overpass, which is rate limited. Expected: HTTP 200 with campus suggestions, or a documented provider error." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('documented response status', () => pm.expect([200, 502, 503]).to.include(pm.response.code));", "if (pm.response.code === 200) pm.test('suggestions are an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "POST Create institution (admin; persists data)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Institution {{$guid}}\",\n  \"shortName\": \"PM{{$guid}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/campuses/institutions",
+            "description": "Admin-only write; creates a persistent institution. Use a disposable database. Expected: HTTP 201; saves institutionId."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.test('institution created', () => pm.expect(body.success).to.eql(true));", "pm.collectionVariables.set('institutionId', body.data.id);"] } }]
+        },
+        {
+          "name": "POST Create campus (admin; geocodes address)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Campus\",\n  \"institutionId\": \"{{institutionId}}\",\n  \"location\": \"Pretoria, Gauteng\",\n  \"address\": \"2 Aubrey Matlala Road, Soshanguve, Pretoria, South Africa\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/campuses",
+            "description": "Admin-only persistent write; requires institutionId. Resolves the address through rate-limited OpenStreetMap. Use a disposable database and do not retry rapidly. Expected: HTTP 201; saves campusId."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('campus created or geocoder reports a documented failure', () => pm.expect([201, 422, 502, 503]).to.include(pm.response.code));", "if (pm.response.code === 201) { const body = pm.response.json(); pm.test('campus has coordinates', () => { pm.expect(body.success).to.eql(true); pm.expect(body.data.latitude).to.be.a('number'); pm.expect(body.data.longitude).to.be.a('number'); }); pm.collectionVariables.set('campusId', body.data.id); }"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Listings and student interactions",
+      "description": "Set listingId to an approved listing UUID before running student interaction requests. Report, favourite, review, and enquiry requests create persistent records.",
+      "item": [
+        {
+          "name": "GET Search public listings",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/listings?search=student&sort=newest&page=1&limit=12", "description": "Public search. Expected: HTTP 200, paginated results contain approved listings only." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('search response includes results', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.items).to.be.an('array'); pm.expect(body.data.items.every(item => item.approvalStatus === 'APPROVED')).to.eql(true); });"] } }]
+        },
+        {
+          "name": "GET Listing detail",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/listings/{{listingId}}", "description": "Set listingId to an approved listing. Expected: HTTP 200 and listing details." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('approved listing returned', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.approvalStatus).to.eql('APPROVED'); });"] } }]
+        },
+        {
+          "name": "GET Listing reviews",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/listings/{{listingId}}/reviews", "description": "Set listingId to an approved listing. Expected: HTTP 200 and review array." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "POST Submit review (student; one review per listing)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"rating\": 5,\n  \"comment\": \"\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/listings/{{listingId}}/reviews",
+            "description": "Requires studentToken and an approved listing not previously reviewed by this student. Optional comment is empty. Expected: HTTP 201; a repeat for the same student/listing returns 409."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('review created or already submitted', () => pm.expect([201, 409]).to.include(pm.response.code));", "if (pm.response.code === 201) pm.test('rating-only review accepted', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.rating).to.eql(5); pm.expect(body.data.comment).to.eql(''); });"] } }]
+        },
+        {
+          "name": "POST Submit report (student; persists data)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Postman workflow test\",\n  \"description\": \"TEST ONLY: verify report submission and student report tracking.\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/listings/{{listingId}}/reports",
+            "description": "Requires studentToken and approved listingId. Creates a persistent test report; use only in a disposable database. Expected: HTTP 201 and success message."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.test('report submitted', () => { pm.expect(body.success).to.eql(true); pm.expect(body.message).to.include('Report submitted successfully'); });"] } }]
+        },
+        {
+          "name": "GET My reports (student)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/reports/mine", "description": "Requires studentToken. Expected: HTTP 200 and only reports submitted by the authenticated student." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('reports returned as array', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data).to.be.an('array'); });"] } }]
+        },
+        {
+          "name": "POST Save favourite (student)",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/users/favourites/{{listingId}}", "description": "Requires studentToken and approved listingId. Creates a persistent favourite; repeated saves may return a conflict." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('favourite added or already exists', () => pm.expect([200, 201, 409]).to.include(pm.response.code));"] } }]
+        },
+        {
+          "name": "GET My favourites (student)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/users/favourites", "description": "Requires studentToken. Expected: HTTP 200 and favourite array." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "POST Start listing conversation (student)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"listingId\": \"{{listingId}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/conversations",
+            "description": "Requires studentToken and approved listingId. Creates a conversation or returns the existing one; saves conversationId."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200 or 201', () => pm.expect([200, 201]).to.include(pm.response.code));", "const body = pm.response.json();", "pm.test('conversation returned', () => pm.expect(body.success).to.eql(true));", "pm.collectionVariables.set('conversationId', body.data.id);"] } }]
+        },
+        {
+          "name": "GET My conversations",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/conversations", "description": "Requires studentToken. Expected: HTTP 200 and the student's conversations." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "POST Send conversation message (student)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"TEST ONLY: Postman student-to-landlord messaging check.\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/conversations/{{conversationId}}/messages",
+            "description": "Requires studentToken and conversationId from Start listing conversation. Creates a persistent test message."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.response.to.have.status(201));", "pm.test('message persisted', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.content).to.include('TEST ONLY'); });"] } }]
+        },
+        {
+          "name": "GET Conversation messages",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/conversations/{{conversationId}}/messages", "description": "Requires studentToken belonging to the conversation. Expected: HTTP 200 and ordered message array." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('messages returned as array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET My notifications",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{studentToken}}" }], "url": "{{baseUrl}}/api/notifications", "description": "Requires studentToken. Expected: HTTP 200 and the authenticated user's notifications." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('notifications returned as array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Landlord",
+      "item": [
+        {
+          "name": "GET My listings (landlord)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{landlordToken}}" }], "url": "{{baseUrl}}/api/listings/my", "description": "Requires landlordToken from the verified landlord login. Expected: HTTP 200 and only that landlord's listings." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('listings returned as array', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data).to.be.an('array'); });"] } }]
+        },
+        {
+          "name": "POST Create listing (verified landlord; persists and geocodes)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{landlordToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "Postman Test Student Room", "type": "text" },
+                { "key": "description", "value": "TEST ONLY: temporary API validation listing.", "type": "text" },
+                { "key": "campusId", "value": "{{campusId}}", "type": "text" },
+                { "key": "accommodationType", "value": "ROOM", "type": "text" },
+                { "key": "pricePerMonth", "value": "4000", "type": "text" },
+                { "key": "address", "value": "Molotlegi Road, Ga-Rankuwa, Gauteng, South Africa", "type": "text" },
+                { "key": "totalRooms", "value": "4", "type": "text" },
+                { "key": "availableRooms", "value": "1", "type": "text" },
+                { "key": "amenities", "value": "[\"Wi-Fi\",\"Security\"]", "type": "text" },
+                { "key": "availabilityStatus", "value": "AVAILABLE", "type": "text" }
+              ]
+            },
+            "url": "{{baseUrl}}/api/listings",
+            "description": "Requires an active verified landlord and campusId. Persistent write; geocodes the property and campus via rate-limited OpenStreetMap/OSRM. Use a disposable database and a near-campus valid address. Add a photos form-data file only if desired. Expected: HTTP 201 and PENDING approval status."
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('listing created or documented geocoder failure', () => pm.expect([201, 422, 502, 503]).to.include(pm.response.code));", "if (pm.response.code === 201) pm.test('listing awaits moderation', () => { const body = pm.response.json(); pm.expect(body.success).to.eql(true); pm.expect(body.data.approvalStatus).to.eql('PENDING'); });"] } }]
+        }
+      ]
+    },
+    {
+      "name": "Admin reads",
+      "description": "All requests require adminToken from Login admin.",
+      "item": [
+        {
+          "name": "GET Pending listings",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/listings/pending", "description": "Expected: HTTP 200 and pending listing array." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('all returned listings are pending', () => { const body = pm.response.json(); pm.expect(body.data).to.be.an('array'); pm.expect(body.data.every(item => item.approvalStatus === 'PENDING')).to.eql(true); });"] } }]
+        },
+        {
+          "name": "GET Admin listings",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/listings?status=ALL", "description": "Expected: HTTP 200 and all listings. Supported statuses: ALL, DRAFT, PENDING, APPROVED, REJECTED." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET Admin statistics",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/stats", "description": "Expected: HTTP 200 and aggregate platform counts." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('stats include listing counts', () => { const data = pm.response.json().data; pm.expect(data.totalListings).to.be.a('number'); pm.expect(data.pendingListings).to.be.a('number'); });"] } }]
+        },
+        {
+          "name": "GET Admin reports",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/reports", "description": "Expected: HTTP 200 and report array for moderation." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('data is an array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        },
+        {
+          "name": "GET Admin users",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/users?role=LANDLORD", "description": "Expected: HTTP 200 and landlord directory; password hashes must not be included." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('user records exclude password hashes', () => { const users = pm.response.json().data; pm.expect(users).to.be.an('array'); pm.expect(users.every(user => !Object.prototype.hasOwnProperty.call(user, 'passwordHash'))).to.eql(true); });"] } }]
+        },
+        {
+          "name": "GET Admin audit logs",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }], "url": "{{baseUrl}}/api/admin/audit-logs", "description": "Expected: HTTP 200 and audit log array." },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));", "pm.test('audit logs returned as array', () => pm.expect(pm.response.json().data).to.be.an('array'));"] } }]
+        }
+      ]
+    }
+  ]
+}

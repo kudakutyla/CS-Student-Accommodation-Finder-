@@ -1,16 +1,52 @@
 {
   "name": "student-accommodation-backend",
   "version": "1.0.0",
-  "main": "server/index.js",
+  "description": "Backend API for Student Accommodation Finder",
+  "main": "dist/src/server.js",
   "scripts": {
-    "start": "node index.js"
+    "dev": "tsx watch src/server.ts",
+    "build": "npm run prisma:generate && tsc",
+    "start": "node dist/src/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "campuses:import": "tsx prisma/import-campus-catalog.ts",
+    "campuses:catalog-import": "tsx prisma/import-verified-campus-records.ts",
+    "properties:demo-import": "tsx prisma/import-demo-properties.ts",
+    "test": "jest --runInBand --detectOpenHandles"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.4.1",
     "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "pg": "^8.23.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.15",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^22.13.8",
+    "@types/nodemailer": "^8.0.2",
+    "@types/supertest": "^6.0.2",
+    "jest": "^29.7.0",
+    "prisma": "^6.4.1",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.6",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
   }
 }

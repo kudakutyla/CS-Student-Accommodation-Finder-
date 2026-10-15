@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const favourite_controller_1 = require("../controllers/favourite.controller");
+const user_controller_1 = require("../controllers/user.controller");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const upload_middleware_1 = require("../middleware/upload.middleware");
+const router = (0, express_1.Router)();
+router.get('/me', auth_middleware_1.authenticate, user_controller_1.getCurrentUserProfile);
+router.patch('/me', auth_middleware_1.authenticate, user_controller_1.updateCurrentUserProfile);
+router.post('/me/profile-picture', auth_middleware_1.authenticate, upload_middleware_1.profilePictureUpload, user_controller_1.uploadCurrentUserProfilePicture);
+router.get('/favourites', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('STUDENT'), favourite_controller_1.getMyFavourites);
+router.post('/favourites/:id', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('STUDENT'), favourite_controller_1.addFavourite);
+router.delete('/favourites/:id', auth_middleware_1.authenticate, (0, auth_middleware_1.authorize)('STUDENT'), favourite_controller_1.removeFavourite);
+exports.default = router;
