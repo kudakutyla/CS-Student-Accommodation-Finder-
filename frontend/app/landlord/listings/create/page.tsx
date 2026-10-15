@@ -49,6 +49,7 @@ export default function CreateListingPage() {
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const photoPreviewsRef = useRef<string[]>([]);
+  const [photoError, setPhotoError] = useState('');
   const previewRequestId = useRef(0);
   const [routePreview, setRoutePreview] = useState<ListingRoutePreview | null>(null);
   const [isPreviewingRoute, setIsPreviewingRoute] = useState(false);
@@ -306,10 +307,46 @@ export default function CreateListingPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label htmlFor="property-photos" className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Property photos</label>
-              <input id="property-photos" required type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { photoPreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview)); const files = Array.from(event.target.files || []).slice(0, 8); const previews = files.map((file) => URL.createObjectURL(file)); photoPreviewsRef.current = previews; setSelectedPhotos(files); setPhotoPreviews(previews); }} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
-              <p className="mt-2 text-xs text-[var(--text-muted)]">Choose up to 8 JPEG, PNG, or WebP images. Maximum 5 MB each.</p>
-              {selectedPhotos.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{selectedPhotos.map((file, index) => <div key={`${file.name}-${file.lastModified}`} className="overflow-hidden border border-[var(--beige)] bg-white"><Image src={photoPreviews[index]} alt={`Preview of ${file.name}`} width={224} height={112} unoptimized className="h-28 w-full object-cover" /><div className="flex items-center justify-between gap-2 p-2"><span className="truncate text-xs">{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => { URL.revokeObjectURL(photoPreviews[index]); photoPreviewsRef.current = photoPreviewsRef.current.filter((_, fileIndex) => fileIndex !== index); setSelectedPhotos((current) => current.filter((_, fileIndex) => fileIndex !== index)); setPhotoPreviews((current) => current.filter((_, fileIndex) => fileIndex !== index)); }} className="text-xs font-semibold text-red-700">Remove</button></div></div>)}</div> : null}
+              <label htmlFor="property-photos" className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Property photos ({selectedPhotos.length}/8)</label>
+              <input
+                id="property-photos"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                aria-describedby="property-photos-help"
+                onChange={(event) => {
+                  const incoming = Array.from(event.currentTarget.files || []);
+                  event.currentTarget.value = '';
+                  setPhotoError('');
+                  if (incoming.length === 0) return;
+
+                  const seen = new Set(selectedPhotos.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+                  const additions = incoming.filter((file) => {
+                    const key = `${file.name}:${file.size}:${file.lastModified}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
+
+                  if (additions.length === 0) {
+                    setPhotoError('Those photos are already selected.');
+                    return;
+                  }
+                  if (selectedPhotos.length + additions.length > 8) {
+                    setPhotoError(`You can upload up to 8 photos. There is room for ${8 - selectedPhotos.length} more.`);
+                    return;
+                  }
+
+                  const previews = additions.map((file) => URL.createObjectURL(file));
+                  photoPreviewsRef.current = [...photoPreviewsRef.current, ...previews];
+                  setSelectedPhotos((current) => [...current, ...additions]);
+                  setPhotoPreviews((current) => [...current, ...previews]);
+                }}
+                className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]"
+              />
+              <p id="property-photos-help" className="mt-2 text-xs text-[var(--text-muted)]">Select multiple JPEG, PNG, or WebP photos at once, or choose more later to add them. Maximum 8 photos, 5 MB each.</p>
+              {photoError ? <p role="alert" className="mt-2 text-sm text-red-700">{photoError}</p> : null}
+              {selectedPhotos.length ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{selectedPhotos.map((file, index) => <div key={`${file.name}-${file.lastModified}`} className="overflow-hidden border border-[var(--beige)] bg-white"><Image src={photoPreviews[index]} alt={`Preview of ${file.name}`} width={224} height={112} unoptimized className="h-28 w-full object-cover" /><div className="flex items-center justify-between gap-2 p-2"><span className="truncate text-xs">{file.name}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => { URL.revokeObjectURL(photoPreviews[index]); photoPreviewsRef.current = photoPreviewsRef.current.filter((_, fileIndex) => fileIndex !== index); setSelectedPhotos((current) => current.filter((_, fileIndex) => fileIndex !== index)); setPhotoPreviews((current) => current.filter((_, fileIndex) => fileIndex !== index)); setPhotoError(''); }} className="text-xs font-semibold text-red-700">Remove</button></div></div>)}</div> : null}
             </div>
           </div>
 

@@ -73,6 +73,19 @@ backend after changing this setting. The previous
 `https://cs-student-accommodation-finder.vercel.app` origin also remains
 allowlisted for compatibility.
 
+The institution logo feature adds a nullable `Institution.logoUrl` column through
+an additive Prisma migration. Follow the migration-baseline and review requirements
+above before applying it to a production database; do not use `prisma db push` as
+a production substitute.
+
+Campus and institution read endpoints check whether this optional column exists
+before selecting it. Campus and institution filters continue to work on an older
+schema and return `logoUrl: null` until the migration is safely applied; logos
+remain available on databases that have the column. This compatibility behavior
+does not establish a migration baseline or make other pending schema changes safe
+to apply. Read-only schema inspection and a reviewed migration plan are still
+required before changing the database.
+
 Set the Blueprint's `sync: false` variables in Render's secret store. Do not put
 their values in `render.yaml` or source control. Configure durable storage for
 `UPLOAD_DIR` before production use, as described above. Select centralized logging

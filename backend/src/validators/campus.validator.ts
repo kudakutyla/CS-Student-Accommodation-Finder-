@@ -13,6 +13,9 @@ export const updateCampusSchema = createCampusSchema.partial();
 export const institutionSchema = z.object({
   name: z.string().min(2).max(160),
   shortName: z.string().max(40).optional().nullable(),
+  logoUrl: z.string().trim().url().max(2048).refine((value) => /^https?:\/\//i.test(value), {
+    message: 'Logo URL must use HTTP or HTTPS',
+  }).nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

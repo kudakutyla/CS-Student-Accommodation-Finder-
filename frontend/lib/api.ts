@@ -149,7 +149,7 @@ export const campusApi = {
     const query = new URLSearchParams({ search });
     return apiFetch<Array<{ name: string; country: string; countryCode: string | null; domains: string[]; webPages: string[] }>>(`/campuses/institutions/suggestions?${query}`);
   },
-  createInstitution: (data: { name: string; shortName?: string | null }) =>
+  createInstitution: (data: { name: string; shortName?: string | null; logoUrl?: string | null }) =>
     apiFetch<Institution>('/campuses/institutions', { method: 'POST', body: JSON.stringify(data) }),
   updateInstitution: (id: string, data: Partial<Institution>) =>
     apiFetch<Institution>(`/campuses/institutions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

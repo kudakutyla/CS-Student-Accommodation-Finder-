@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AuthGuard } from '../../../components/auth-guard';
@@ -13,10 +14,30 @@ function normalizeInstitutionName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function InstitutionLogoPreview({ name, logoUrl }: { name: string; logoUrl: string }) {
+  const [failedUrl, setFailedUrl] = useState('');
+
+  if (failedUrl === logoUrl) {
+    return <span className="text-xs text-[var(--text-muted)]">Logo preview unavailable.</span>;
+  }
+
+  return (
+    <Image
+      src={logoUrl}
+      alt={`${name} logo preview`}
+      width={64}
+      height={64}
+      unoptimized
+      onError={() => setFailedUrl(logoUrl)}
+      className="h-16 w-16 rounded-lg border border-[var(--beige)] bg-white p-2 object-contain"
+    />
+  );
+}
+
 export default function AdminCampusesPage() {
   const router = useRouter();
   const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [institutionForm, setInstitutionForm] = useState({ name: '', shortName: '' });
+  const [institutionForm, setInstitutionForm] = useState({ name: '', shortName: '', logoUrl: '' });
   const [editingInstitutionId, setEditingInstitutionId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,7 +103,11 @@ export default function AdminCampusesPage() {
     setSaving(true);
     setError('');
     try {
-      const payload = { name: institutionForm.name.trim(), shortName: institutionForm.shortName.trim() || null };
+      const payload = {
+        name: institutionForm.name.trim(),
+        shortName: institutionForm.shortName.trim() || null,
+        logoUrl: institutionForm.logoUrl.trim() || null,
+      };
       if (editingInstitutionId) {
         await campusApi.updateInstitution(editingInstitutionId, payload);
       } else {
@@ -99,7 +124,7 @@ export default function AdminCampusesPage() {
         router.push(`/admin/campuses/add?institutionId=${encodeURIComponent(response.data.id)}`);
         return;
       }
-      setInstitutionForm({ name: '', shortName: '' });
+      setInstitutionForm({ name: '', shortName: '', logoUrl: '' });
       setEditingInstitutionId('');
       setNotice('Institution updated.');
       await load();
@@ -180,10 +205,12 @@ export default function AdminCampusesPage() {
             <form onSubmit={saveInstitution} className="mt-4 grid gap-3 border border-[var(--beige)] bg-white p-4">
               <label className="grid gap-1 text-xs font-medium">Institution name<input required minLength={2} value={institutionForm.name} onChange={(event) => setInstitutionForm((current) => ({ ...current, name: event.target.value }))} className="border border-[var(--beige)] px-3 py-2 text-sm" /></label>
               <label className="grid gap-1 text-xs font-medium">Short name (optional)<input value={institutionForm.shortName} onChange={(event) => setInstitutionForm((current) => ({ ...current, shortName: event.target.value }))} className="border border-[var(--beige)] px-3 py-2 text-sm" /></label>
-              <div className="flex gap-2"><button disabled={saving || (!editingInstitutionId && loading)} className="bg-[var(--charcoal)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : editingInstitutionId ? 'Save institution' : 'Add institution'}</button>{editingInstitutionId ? <button type="button" onClick={() => { setEditingInstitutionId(''); setInstitutionForm({ name: '', shortName: '' }); }} className="border border-[var(--beige)] px-3 py-2 text-sm">Cancel</button> : null}</div>
+              <label className="grid gap-1 text-xs font-medium">Official logo URL (optional)<input type="url" inputMode="url" maxLength={2048} value={institutionForm.logoUrl} onChange={(event) => setInstitutionForm((current) => ({ ...current, logoUrl: event.target.value }))} placeholder="https://example.edu/logo.png" className="border border-[var(--beige)] px-3 py-2 text-sm" /><span className="text-[var(--text-muted)]">Use a direct HTTP or HTTPS image URL. Leave blank to show the fallback.</span></label>
+              {institutionForm.logoUrl.trim() ? <InstitutionLogoPreview key={institutionForm.logoUrl} name={institutionForm.name} logoUrl={institutionForm.logoUrl.trim()} /> : null}
+              <div className="flex gap-2"><button disabled={saving || (!editingInstitutionId && loading)} className="bg-[var(--charcoal)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Saving...' : editingInstitutionId ? 'Save institution' : 'Add institution'}</button>{editingInstitutionId ? <button type="button" onClick={() => { setEditingInstitutionId(''); setInstitutionForm({ name: '', shortName: '', logoUrl: '' }); }} className="border border-[var(--beige)] px-3 py-2 text-sm">Cancel</button> : null}</div>
             </form>
               <div className="mt-4 divide-y divide-[var(--beige)]">
-                {institutions.map((institution) => <article key={institution.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{institution.name} {institution.shortName ? <span className="text-xs font-normal text-[var(--text-muted)]">({institution.shortName})</span> : null}</p><p className="text-xs text-[var(--text-muted)]">{institution.campusCount ?? 0} campuses · {institution.isActive ? 'Active' : 'Inactive'}</p></div><div className="flex flex-wrap gap-2"><Link href={`/admin/institutions/${institution.id}`} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Manage campuses</Link>{institution.isActive ? <Link href={`/admin/campuses/add?institutionId=${encodeURIComponent(institution.id)}`} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Add campus</Link> : null}<button onClick={() => { setEditingInstitutionId(institution.id); setInstitutionForm({ name: institution.name, shortName: institution.shortName || '' }); }} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Edit</button><button onClick={() => void toggleInstitution(institution)} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">{institution.isActive ? 'Deactivate' : 'Activate'}</button></div></article>)}
+                {institutions.map((institution) => <article key={institution.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold">{institution.name} {institution.shortName ? <span className="text-xs font-normal text-[var(--text-muted)]">({institution.shortName})</span> : null}</p><p className="text-xs text-[var(--text-muted)]">{institution.campusCount ?? 0} campuses · {institution.isActive ? 'Active' : 'Inactive'}{institution.logoUrl ? ' · Logo configured' : ''}</p></div><div className="flex flex-wrap gap-2"><Link href={`/admin/institutions/${institution.id}`} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Manage campuses</Link>{institution.isActive ? <Link href={`/admin/campuses/add?institutionId=${encodeURIComponent(institution.id)}`} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Add campus</Link> : null}<button onClick={() => { setEditingInstitutionId(institution.id); setInstitutionForm({ name: institution.name, shortName: institution.shortName || '', logoUrl: institution.logoUrl || '' }); }} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">Edit</button><button onClick={() => void toggleInstitution(institution)} className="border border-[var(--beige)] px-2.5 py-1.5 text-xs font-semibold">{institution.isActive ? 'Deactivate' : 'Activate'}</button></div></article>)}
                 {!loading && institutions.length === 0 ? <p className="py-4 text-sm text-[var(--text-muted)]">No institutions have been added.</p> : null}
               </div>
             </div>

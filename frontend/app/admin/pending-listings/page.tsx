@@ -14,6 +14,9 @@ export default function PendingListingsPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [search, setSearch] = useState('');
+  const [submittedFrom, setSubmittedFrom] = useState('');
+  const [submittedTo, setSubmittedTo] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -40,13 +43,58 @@ export default function PendingListingsPage() {
     }
   }
 
+  const invalidDateRange = Boolean(submittedFrom && submittedTo && submittedFrom > submittedTo);
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredListings = invalidDateRange ? [] : listings.filter((listing) => {
+    const ownerName = listing.provider?.name || listing.owner?.name || '';
+    const searchableText = [
+      listing.title,
+      listing.address,
+      listing.campus.name,
+      ownerName,
+    ].join(' ').toLocaleLowerCase();
+    if (normalizedSearch && !searchableText.includes(normalizedSearch)) return false;
+
+    if (submittedFrom || submittedTo) {
+      const submittedAt = new Date(listing.createdAt);
+      if (Number.isNaN(submittedAt.getTime())) return false;
+      const localDate = [
+        submittedAt.getFullYear(),
+        String(submittedAt.getMonth() + 1).padStart(2, '0'),
+        String(submittedAt.getDate()).padStart(2, '0'),
+      ].join('-');
+      if (submittedFrom && localDate < submittedFrom) return false;
+      if (submittedTo && localDate > submittedTo) return false;
+    }
+    return true;
+  });
+
   return (
     <AuthGuard allowedRoles={['ADMIN']}>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--beige)] pb-5"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-terracotta)]">Publication controls</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Pending listings</h1></div><button onClick={() => { setLoading(true); setReloadKey((value) => value + 1); }} className="border border-[var(--beige)] px-3 py-2 text-sm font-semibold">Refresh</button></header>
         {error ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="mt-4 border-l-4 border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p> : null}
-        {loading ? <p role="status" className="py-8 text-sm text-[var(--text-muted)]">Loading pending listings...</p> : listings.length === 0 ? <p className="py-8 text-sm text-[var(--text-muted)]">No listings are waiting for approval.</p> : <div className="divide-y divide-[var(--beige)]">{listings.map((listing) => <article key={listing.id} className="grid gap-4 py-5 sm:grid-cols-[1fr_auto]"><div><div className="flex flex-wrap items-baseline gap-3"><h2 className="font-semibold text-[var(--charcoal)]">{listing.title}</h2><span className="text-xs text-[var(--text-muted)]">{listing.accommodationType.replaceAll('_', ' ')}</span></div><p className="mt-1 text-sm text-[var(--text-muted)]">{listing.provider?.name || listing.owner?.name || 'Landlord'} · {listing.campus.name}</p><p className="mt-1 text-sm">{listing.address}</p><p className="mt-1 text-sm font-semibold">R{listing.pricePerMonth.toLocaleString()} / month · {listing.distanceFromCampus.toFixed(1)} km</p><div className="mt-3 grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-4">{listing.photos.map((photo) => <div key={photo.id} className="relative h-28 overflow-hidden border border-[var(--beige)] bg-[var(--cream)]"><ListingImage src={photo.photoUrl} alt={`${listing.title} property`} sizes="160px" /></div>)}</div><Link href={`/listings/${listing.id}`} className="mt-3 inline-block text-sm font-semibold underline">Review listing details</Link></div><div className="flex items-start gap-2 sm:flex-col"><button disabled={busyId === listing.id} onClick={() => void runAction(listing, () => adminApi.approveListing(listing.id), 'Listing approved.')} className="bg-emerald-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Approve</button><button disabled={busyId === listing.id} onClick={() => { const reason = window.prompt('Enter a rejection reason (at least 3 characters):'); if (reason?.trim()) void runAction(listing, () => adminApi.rejectListing(listing.id, reason.trim()), 'Listing rejected with a reason.'); }} className="bg-red-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Reject</button></div></article>)}</div>}
+        {!loading && !error ? (
+          <section aria-label="Filter pending listings" className="mt-5 grid gap-3 border-b border-[var(--beige)] pb-5 sm:grid-cols-2 lg:grid-cols-[minmax(16rem,1fr)_repeat(2,minmax(10rem,14rem))_auto] lg:items-end">
+            <label className="grid gap-1 text-sm font-medium text-[var(--charcoal)]">
+              Search residences
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Residence, address, campus or landlord" className="min-h-10 rounded-md border border-[var(--beige)] bg-white px-3 text-sm outline-none focus:border-[var(--accent-terracotta)]" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-[var(--charcoal)]">
+              Submitted from
+              <input type="date" value={submittedFrom} onChange={(event) => setSubmittedFrom(event.target.value)} className="min-h-10 rounded-md border border-[var(--beige)] bg-white px-3 text-sm outline-none focus:border-[var(--accent-terracotta)]" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-[var(--charcoal)]">
+              Submitted to
+              <input type="date" value={submittedTo} onChange={(event) => setSubmittedTo(event.target.value)} className="min-h-10 rounded-md border border-[var(--beige)] bg-white px-3 text-sm outline-none focus:border-[var(--accent-terracotta)]" />
+            </label>
+            <button type="button" onClick={() => { setSearch(''); setSubmittedFrom(''); setSubmittedTo(''); }} className="min-h-10 px-3 text-sm font-semibold text-[var(--brown-dark)] underline">Clear filters</button>
+            {invalidDateRange ? <p role="alert" className="text-sm text-red-700 sm:col-span-2 lg:col-span-full">The start date must be on or before the end date.</p> : null}
+            <p role="status" className="text-xs text-[var(--text-muted)] sm:col-span-2 lg:col-span-full">Showing {filteredListings.length} of {listings.length} pending residences.</p>
+          </section>
+        ) : null}
+        {loading ? <p role="status" className="py-8 text-sm text-[var(--text-muted)]">Loading pending listings...</p> : error ? null : listings.length === 0 ? <p className="py-8 text-sm text-[var(--text-muted)]">No listings are waiting for approval.</p> : filteredListings.length === 0 ? <p className="py-8 text-sm text-[var(--text-muted)]">No pending residences match these filters.</p> : <div className="divide-y divide-[var(--beige)]">{filteredListings.map((listing) => <article key={listing.id} className="grid gap-4 py-5 sm:grid-cols-[1fr_auto]"><div><div className="flex flex-wrap items-baseline gap-3"><h2 className="font-semibold text-[var(--charcoal)]">{listing.title}</h2><span className="text-xs text-[var(--text-muted)]">{listing.accommodationType.replaceAll('_', ' ')}</span></div><p className="mt-1 text-sm text-[var(--text-muted)]">{listing.provider?.name || listing.owner?.name || 'Landlord'} · {listing.campus.name}</p><p className="mt-1 text-sm">{listing.address}</p><p className="mt-1 text-sm font-semibold">R{listing.pricePerMonth.toLocaleString()} / month · {listing.distanceFromCampus.toFixed(1)} km</p><p className="mt-1 text-xs text-[var(--text-muted)]">Submitted {new Date(listing.createdAt).toLocaleString()}</p><div className="mt-3 grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-4">{listing.photos.map((photo) => <div key={photo.id} className="relative h-28 overflow-hidden border border-[var(--beige)] bg-[var(--cream)]"><ListingImage src={photo.photoUrl} alt={`${listing.title} property`} sizes="160px" /></div>)}</div><Link href={`/listings/${listing.id}`} className="mt-3 inline-block text-sm font-semibold underline">Review listing details</Link></div><div className="flex items-start gap-2 sm:flex-col"><button disabled={busyId === listing.id} onClick={() => void runAction(listing, () => adminApi.approveListing(listing.id), 'Listing approved.')} className="bg-emerald-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Approve</button><button disabled={busyId === listing.id} onClick={() => { const reason = window.prompt('Enter a rejection reason (at least 3 characters):'); if (reason?.trim()) void runAction(listing, () => adminApi.rejectListing(listing.id, reason.trim()), 'Listing rejected with a reason.'); }} className="bg-red-800 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Reject</button></div></article>)}</div>}
       </main>
     </AuthGuard>
   );

@@ -1,4 +1,8 @@
-import { createCampusSchema } from '../src/validators/campus.validator';
+import {
+  createCampusSchema,
+  institutionSchema,
+  updateInstitutionSchema,
+} from '../src/validators/campus.validator';
 
 describe('campus institution/address validation', () => {
   it('requires an institution and full address', () => {
@@ -26,5 +30,25 @@ describe('campus institution/address validation', () => {
       expect(result.data).not.toHaveProperty('latitude');
       expect(result.data).not.toHaveProperty('longitude');
     }
+  });
+
+  it('accepts an optional HTTP(S) institution logo URL', () => {
+    expect(institutionSchema.safeParse({
+      name: 'Example University',
+      logoUrl: 'https://example.edu/logo.png',
+    }).success).toBe(true);
+    expect(institutionSchema.safeParse({
+      name: 'Example University',
+      logoUrl: null,
+    }).success).toBe(true);
+    expect(institutionSchema.safeParse({
+      name: 'Example University',
+      logoUrl: 'javascript:alert(1)',
+    }).success).toBe(false);
+  });
+
+  it('allows an administrator to clear an institution logo URL', () => {
+    expect(updateInstitutionSchema.safeParse({ logoUrl: null }).success).toBe(true);
+    expect(updateInstitutionSchema.safeParse({ logoUrl: 'not a URL' }).success).toBe(false);
   });
 });

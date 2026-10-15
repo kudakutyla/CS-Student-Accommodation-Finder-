@@ -16,6 +16,7 @@ export interface Institution {
   id: string;
   name: string;
   shortName?: string | null;
+  logoUrl?: string | null;
   isActive?: boolean;
   campusCount?: number;
   createdAt?: string;

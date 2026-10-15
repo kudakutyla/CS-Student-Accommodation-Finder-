@@ -38,6 +38,9 @@ describe('Sprint 2: Campus Management Tests', () => {
     expect(res.body.data[0].name).toBeDefined();
     expect(res.body.data[0].latitude).toBeDefined();
     expect(res.body.data[0].longitude).toBeDefined();
+    const linkedCampus = res.body.data.find((campus: { institution?: unknown }) => campus.institution);
+    expect(linkedCampus).toBeDefined();
+    expect(linkedCampus.institution).toHaveProperty('logoUrl');
   });
 
   it('Student cannot create campus (403)', async () => {

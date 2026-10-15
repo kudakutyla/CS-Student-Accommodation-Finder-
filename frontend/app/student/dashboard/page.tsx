@@ -1,11 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ListingImage } from '../../../components/listing-image';
 import { AuthGuard } from '../../../components/auth-guard';
 import { campusApi, listingApi } from '../../../lib/api';
+import { getOfficialInstitutionLogo } from '../../../lib/institution-logos';
 import type { Campus, Listing } from '../../../types';
+
+function InstitutionLogo({ campus }: { campus: Campus }) {
+  const [failed, setFailed] = useState(false);
+  const logoUrl = campus.institution?.logoUrl || getOfficialInstitutionLogo(campus.institution?.name);
+
+  if (!logoUrl || failed) {
+    return (
+      <span aria-hidden="true" className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/80 font-serif text-xl font-semibold text-[var(--brown-dark)]">
+        {(campus.institution?.shortName || campus.institution?.name || campus.name).slice(0, 2).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={logoUrl}
+      alt={`${campus.institution?.name || campus.name} logo`}
+      width={192}
+      height={96}
+      unoptimized
+      onError={() => setFailed(true)}
+      className="h-16 w-36 rounded-2xl bg-white/90 p-1 object-contain"
+    />
+  );
+}
 
 export default function StudentDashboardPage() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -79,9 +106,12 @@ export default function StudentDashboardPage() {
                 className="group rounded-[24px] border border-[var(--beige)] bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--sand)]"
               >
                 <div className="h-32 overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#d9c7b3,#f7efe8)]">
-                  <div className="flex h-full items-end justify-between p-4 text-[var(--charcoal)]">
-                    <span className="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">Campus</span>
-                    <span className="rounded-full bg-[var(--charcoal)] px-2.5 py-1 text-[10px] font-semibold text-white">{campus.listingCount ?? 0}</span>
+                  <div className="flex h-full flex-col items-center justify-between p-3 text-[var(--charcoal)]">
+                    <InstitutionLogo key={`${campus.id}:${campus.institution?.logoUrl || ''}`} campus={campus} />
+                    <div className="flex w-full items-center justify-between">
+                      <span className="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]">Campus</span>
+                      <span className="rounded-full bg-[var(--charcoal)] px-2.5 py-1 text-[10px] font-semibold text-white">{campus.listingCount ?? 0}</span>
+                    </div>
                   </div>
                 </div>
 

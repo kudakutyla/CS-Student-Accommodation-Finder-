@@ -78,6 +78,8 @@ Core entities (Prisma/PostgreSQL): users (student/landlord/admin roles, with a l
 `verified` flag), campuses, listings (owner = landlord, approval status, coordinates,
 photos + primary-photo selection), favourites, reviews, conversations/messages, reports,
 notifications, audit log for moderation actions.
+Institutions may have an optional administrator-managed HTTP(S) logo URL for campus
+discovery cards; missing or failed logo images must render a graceful fallback.
 
 Required before saving:
 - Listing: valid coordinates, at least the fields needed for distance calculation, and an

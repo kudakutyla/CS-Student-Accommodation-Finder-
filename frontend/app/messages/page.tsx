@@ -8,7 +8,7 @@ import { conversationApi, fetchMedia } from '../../lib/api';
 import type { Conversation, Message } from '../../types';
 
 export default function MessagesPage() {
-  return <Suspense fallback={<p className="mx-auto max-w-6xl px-4 py-12 text-sm text-[var(--text-muted)]">Loading messages...</p>}><MessagesContent /></Suspense>;
+  return <Suspense fallback={<p className="px-4 py-12 text-sm text-[var(--text-muted)]">Loading messages...</p>}><MessagesContent /></Suspense>;
 }
 
 function MessagesContent() {
@@ -75,20 +75,20 @@ function MessagesContent() {
 
   return (
     <AuthGuard allowedRoles={['STUDENT', 'LANDLORD']}>
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="border-b border-[var(--beige)] pb-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Enquiries</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Messages</h1></div>
+      <main className="flex min-h-[calc(100dvh-3rem)] flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <div className="shrink-0 pb-2"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Enquiries</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Messages</h1></div>
         {error ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => { setError(''); void loadConversations().catch((err) => setError(err instanceof Error ? err.message : 'Unable to load conversations.')); }} className="ml-3 font-semibold underline">Retry</button></p> : null}
-        <div className="mt-6 grid min-h-[60vh] border border-[var(--beige)] md:grid-cols-[280px_1fr]">
-          <nav aria-label="Conversations" className="divide-y divide-[var(--beige)] border-b border-[var(--beige)] md:border-b-0 md:border-r">
+        <div className="mt-4 grid flex-1 grid-cols-1 grid-rows-[minmax(7rem,25vh)_minmax(24rem,1fr)] md:min-h-0 md:grid-cols-[280px_minmax(0,1fr)] md:grid-rows-1">
+          <nav aria-label="Conversations" className="overflow-y-auto border-b border-[var(--beige)] md:min-h-0 md:border-b-0 md:border-r">
             {loading ? <p className="p-4 text-sm text-[var(--text-muted)]">Loading inbox...</p> : conversations.length === 0 ? <p className="p-4 text-sm text-[var(--text-muted)]">No enquiries yet.</p> : conversations.map((conversation) => {
               const other = user?.id === conversation.studentId ? conversation.landlord : conversation.student;
-              return <button key={conversation.id} type="button" onClick={() => { setMessages([]); setSelectedId(conversation.id); }} aria-current={selectedId === conversation.id ? 'true' : undefined} className={`block w-full border-l-2 p-4 text-left ${selectedId === conversation.id ? 'border-[var(--accent-terracotta)] bg-[var(--cream)]' : 'border-transparent hover:bg-[var(--warm-white)]'}`}><span className="block text-sm font-semibold text-[var(--charcoal)]">{other.name}</span><span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{conversation.listing.title}</span><span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{conversation.lastMessage?.content ?? 'Enquiry started'}</span></button>;
+              return <button key={conversation.id} type="button" onClick={() => { setMessages([]); setSelectedId(conversation.id); }} aria-current={selectedId === conversation.id ? 'true' : undefined} className={`block w-full p-4 text-left ${selectedId === conversation.id ? 'bg-[var(--cream)]' : 'hover:bg-[var(--warm-white)]'}`}><span className="block text-sm font-semibold text-[var(--charcoal)]">{other.name}</span><span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{conversation.listing.title}</span><span className="mt-1 block truncate text-xs text-[var(--text-muted)]">{conversation.lastMessage?.content ?? 'Enquiry started'}</span></button>;
             })}
           </nav>
-          <section className="flex min-h-[60vh] flex-col">
+          <section className="flex min-h-0 flex-col">
             {selectedId ? <>
-              <div className="border-b border-[var(--beige)] p-4"><p className="font-semibold text-[var(--charcoal)]">{(conversations ?? []).find((item) => item.id === selectedId)?.listing.title ?? 'Conversation'}</p></div>
-              <div aria-live="polite" className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+              <div className="shrink-0 p-4"><p className="font-semibold text-[var(--charcoal)]">{(conversations ?? []).find((item) => item.id === selectedId)?.listing.title ?? 'Conversation'}</p></div>
+              <div aria-live="polite" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex max-w-[85%] flex-col ${message.senderId === user?.id ? 'self-end' : 'self-start'}`}>
                     {message.content ? <p className={`whitespace-pre-wrap px-3 py-2 text-sm ${message.senderId === user?.id ? 'bg-[var(--charcoal)] text-white' : 'bg-[var(--cream)] text-[var(--charcoal)]'}`}>{message.content}</p> : null}
@@ -102,7 +102,7 @@ function MessagesContent() {
                   </div>
                 ))}
               </div>
-              <form onSubmit={send} className="space-y-2 border-t border-[var(--beige)] p-3">
+              <form onSubmit={send} className="shrink-0 space-y-2 p-3">
                 <div className="grid gap-2 sm:grid-cols-[1fr_220px]">
                   <label className="sr-only" htmlFor="message-content">Write a message</label>
                   <textarea id="message-content" maxLength={4000} value={content} onChange={(event) => setContent(event.target.value)} className="min-h-11 resize-y border border-[var(--beige)] p-3 text-sm" placeholder="Write a message" />

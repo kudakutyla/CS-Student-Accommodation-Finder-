@@ -17,12 +17,35 @@ import {
   searchInstitutionCampuses,
 } from '../utils/geocode';
 
+async function institutionLogoColumnAvailable(): Promise<boolean> {
+  const result = await prisma.$queryRaw<Array<{ available: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'Institution'
+        AND column_name = 'logoUrl'
+    ) AS available
+  `;
+  if (result.length !== 1) {
+    throw new Error('Could not determine whether Institution.logoUrl is available.');
+  }
+  return result[0].available;
+}
+
 export async function getInstitutions(req: Request, res: Response): Promise<void> {
   try {
+    const logoColumnAvailable = await institutionLogoColumnAvailable();
     const institutions = await prisma.institution.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        ...(logoColumnAvailable ? { logoUrl: true } : {}),
+        isActive: true,
+        createdAt: true,
         _count: { select: { campuses: true } },
       },
     });
@@ -33,6 +56,7 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
         id: institution.id,
         name: institution.name,
         shortName: institution.shortName,
+        logoUrl: institution.logoUrl ?? null,
         isActive: institution.isActive,
         createdAt: institution.createdAt,
       }))
@@ -45,14 +69,24 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
 
 export async function getAdminInstitutions(_req: Request, res: Response): Promise<void> {
   try {
+    const logoColumnAvailable = await institutionLogoColumnAvailable();
     const institutions = await prisma.institution.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { campuses: true } } },
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        ...(logoColumnAvailable ? { logoUrl: true } : {}),
+        isActive: true,
+        createdAt: true,
+        _count: { select: { campuses: true } },
+      },
     });
     sendSuccess(res, institutions.map((institution) => ({
       id: institution.id,
       name: institution.name,
       shortName: institution.shortName,
+      logoUrl: institution.logoUrl ?? null,
       isActive: institution.isActive,
       campusCount: institution._count.campuses,
       createdAt: institution.createdAt,
@@ -260,6 +294,7 @@ export async function updateInstitution(req: Request, res: Response): Promise<vo
 
 async function sendCampuses(req: Request, res: Response, includeInactive: boolean): Promise<void> {
   try {
+    const logoColumnAvailable = await institutionLogoColumnAvailable();
     const institutionId = typeof req.query.institutionId === 'string' ? req.query.institutionId : undefined;
 
     const campuses = await prisma.campus.findMany({
@@ -270,8 +305,25 @@ async function sendCampuses(req: Request, res: Response, includeInactive: boolea
         }),
         ...(institutionId ? { institutionId } : {}),
       },
-      include: {
-        institution: true,
+      select: {
+        id: true,
+        institutionId: true,
+        name: true,
+        location: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+            ...(logoColumnAvailable ? { logoUrl: true } : {}),
+          },
+        },
         _count: {
           select: {
             listings: { where: { approvalStatus: 'APPROVED' } },
@@ -288,6 +340,7 @@ async function sendCampuses(req: Request, res: Response, includeInactive: boolea
         id: c.institution.id,
         name: c.institution.name,
         shortName: c.institution.shortName,
+        logoUrl: c.institution.logoUrl ?? null,
       } : null,
       name: c.name,
       location: c.location,
@@ -318,11 +371,32 @@ export async function getAdminCampuses(req: Request, res: Response): Promise<voi
 export async function getCampusById(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
+    const logoColumnAvailable = await institutionLogoColumnAvailable();
 
     const campus = await prisma.campus.findUnique({
       where: { id },
-      include: {
-        institution: true,
+      select: {
+        id: true,
+        institutionId: true,
+        name: true,
+        location: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            ...(logoColumnAvailable ? { logoUrl: true } : {}),
+          },
+        },
         _count: {
           select: {
             listings: {
@@ -340,6 +414,10 @@ export async function getCampusById(req: Request, res: Response): Promise<void> 
 
     sendSuccess(res, {
       ...campus,
+      institution: campus.institution ? {
+        ...campus.institution,
+        logoUrl: campus.institution.logoUrl ?? null,
+      } : null,
       listingCount: campus._count.listings,
     });
   } catch (error) {

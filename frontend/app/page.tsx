@@ -19,24 +19,35 @@ export default function Home() {
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
-  const [loadError, setLoadError] = useState('');
+  const [catalogError, setCatalogError] = useState('');
+  const [listingError, setListingError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (isLoading) return;
 
-    Promise.all([
+    let active = true;
+    Promise.allSettled([
       campusApi.getInstitutions(),
       campusApi.getCampuses(),
       listingApi.searchListings({ limit: 3, sort: 'newest' }),
-    ]).then(([institutionRes, campusRes, listingRes]) => {
-      setInstitutions(institutionRes.data || []);
-      setCampuses(campusRes.data || []);
-      setListings(listingRes.data.items || []);
-      setLoadError('');
-    }).catch(() => {
-      setLoadError('Live accommodation data is temporarily unavailable. Search all listings or try again shortly.');
+    ]).then(([institutionResult, campusResult, listingResult]) => {
+      if (!active) return;
+      const catalogFailed = institutionResult.status === 'rejected' || campusResult.status === 'rejected';
+      setCatalogError(catalogFailed
+        ? 'Campus and institution filters are temporarily unavailable. Featured homes may still be browsed below. Retry or contact the administrator if this continues.'
+        : '');
+      setInstitutions(institutionResult.status === 'fulfilled' ? institutionResult.value.data || [] : []);
+      setCampuses(campusResult.status === 'fulfilled' ? campusResult.value.data || [] : []);
+      if (listingResult.status === 'fulfilled') {
+        setListings(listingResult.value.data.items || []);
+        setListingError('');
+      } else {
+        setListingError('Approved accommodation could not be loaded. Please retry or search all listings.');
+        setListings([]);
+      }
     });
+    return () => { active = false; };
   }, [isLoading, reloadKey]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -64,8 +75,9 @@ export default function Home() {
   return (
     <div className="overflow-hidden">
       <section className="relative isolate min-h-[min(760px,calc(100svh-64px))] overflow-hidden bg-[var(--charcoal)] text-white">
-        <Image src="/images/campus-hero-exterior.jpg" alt="University campus building and grounds" fill priority sizes="100vw" className="object-cover" />
-        <div className="absolute inset-0 bg-black/45" />
+      <Image src="/images/campus-hero-exterior.jpg" alt="" aria-hidden="true" fill priority sizes="100vw" className="scale-110 object-cover blur-sm brightness-50" />
+      <Image src="/images/campus-hero-exterior.jpg" alt="University campus building and grounds" fill priority sizes="100vw" className="object-contain" />
+      <div className="absolute inset-0 bg-black/30" />
         <div className="relative mx-auto grid min-h-[min(760px,calc(100svh-64px))] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.78fr)] lg:px-8 lg:py-16">
           <div className="max-w-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f4d6c5]">Student accommodation finder</p>
@@ -107,7 +119,8 @@ export default function Home() {
         </div>
       </section>
 
-      {loadError ? <p role="status" className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">{loadError}<button onClick={() => setReloadKey((current) => current + 1)} className="font-semibold underline">Retry</button></p> : null}
+      {catalogError ? <p role="status" className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">{catalogError}<button onClick={() => setReloadKey((current) => current + 1)} className="font-semibold underline">Retry</button></p> : null}
+      {listingError ? <p role="alert" className="flex flex-wrap items-center justify-center gap-3 border-b border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-900">{listingError}<button onClick={() => setReloadKey((current) => current + 1)} className="font-semibold underline">Retry</button></p> : null}
 
       <section className="border-b border-[var(--beige)] bg-[var(--warm-white)]">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:grid-cols-3 sm:px-6 lg:px-8">
