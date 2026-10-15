@@ -2,6 +2,7 @@ import {
   calculateRouteDistanceKm,
   resolveAddressCoordinates,
   resolveListingLocation,
+  resolveListingRoutePreview,
   searchCampusAddressSuggestions,
   searchInstitutionCampuses,
   searchNearbyAccommodationLocations,
@@ -20,6 +21,7 @@ describe('OpenStreetMap address and route services', () => {
     if (originalApiKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY;
     else process.env.GOOGLE_MAPS_API_KEY = originalApiKey;
     global.fetch = originalFetch;
+    jest.restoreAllMocks();
     jest.resetAllMocks();
   });
 
@@ -58,6 +60,70 @@ describe('OpenStreetMap address and route services', () => {
     const routeRequest = new URL(String(fetchMock.mock.calls[2][0]));
     expect(routeRequest.toString()).toContain('/route/v1/driving/28.2,-25.75;28.3,-25.8');
     expect(routeRequest.searchParams.get('overview')).toBe('false');
+  });
+
+  it('returns server-calculated route geometry and distance for a map preview', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ lat: '-25.75', lon: '28.2' }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ lat: '-25.8', lon: '28.3' }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [{
+            distance: 12500,
+            geometry: {
+              type: 'LineString',
+              coordinates: [[28.2, -25.75], [28.3, -25.8]],
+            },
+          }],
+        }),
+      } as Response);
+
+    await expect(resolveListingRoutePreview('10 Main Road', 'Campus Avenue, Pretoria')).resolves.toEqual({
+      latitude: -25.75,
+      longitude: 28.2,
+      campusCoordinates: { latitude: -25.8, longitude: 28.3 },
+      distanceFromCampus: 12.5,
+      routeGeometry: {
+        type: 'LineString',
+        coordinates: [[28.2, -25.75], [28.3, -25.8]],
+      },
+    });
+
+    const routeRequest = new URL(String(fetchMock.mock.calls[2][0]));
+    expect(routeRequest.searchParams.get('overview')).toBe('full');
+    expect(routeRequest.searchParams.get('geometries')).toBe('geojson');
+  });
+
+  it('rejects invalid OSRM geometry from a route preview', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ lat: '-25.75', lon: '28.2' }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ lat: '-25.8', lon: '28.3' }],
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [{ distance: 12500, geometry: { type: 'Point', coordinates: [28.2, -25.75] } }],
+        }),
+      } as Response);
+
+    await expect(resolveListingRoutePreview('10 Main Road', 'Campus Avenue, Pretoria'))
+      .rejects.toThrow(/invalid route geometry/i);
   });
 
   it('rejects an address that Nominatim cannot resolve', async () => {
@@ -207,13 +273,38 @@ describe('OpenStreetMap address and route services', () => {
 
   it('does not try contextual address suggestions after a provider error', async () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 429 } as Response);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
 
     await expect(searchCampusAddressSuggestions(
       'University Road',
       'Pretoria, Gauteng',
       'Example University'
     )).rejects.toThrow(/busy or temporarily unavailable/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([429, 503])('logs Nominatim HTTP %s without logging the searched address', async (status) => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    const warningSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValueOnce(new Response(null, {
+      status,
+      headers: { 'retry-after': '3' },
+    }));
+
+    await expect(searchCampusAddressSuggestions(
+      'Confidential University Road',
+      'Pretoria, Gauteng',
+      'Example University'
+    )).rejects.toMatchObject({
+      statusCode: 503,
+      message: 'OpenStreetMap address lookup is busy or temporarily unavailable. Try again later.',
+    });
+
+    expect(warningSpy).toHaveBeenCalledWith(
+      'Nominatim address lookup received a transient HTTP response.',
+      { status, retryAfter: '3' }
+    );
+    expect(JSON.stringify(warningSpy.mock.calls)).not.toContain('Confidential University Road');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -575,10 +666,7 @@ describe('OpenStreetMap address and route services', () => {
 
   it('does not retry a campus lookup after a Nominatim rate-limit response', async () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 429,
-    } as Response);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
 
     await expect(resolveAddressCoordinates('University campus', {
       locality: 'Kimberley',

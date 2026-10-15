@@ -30,7 +30,7 @@ export default function AdminDashboardPage() {
     { label: 'Landlords', value: stats.totalLandlords, href: '/admin/results?type=landlords' },
     { label: 'Verified landlords', value: stats.verifiedLandlords, href: '/admin/results?type=verified-landlords' },
     { label: 'Listings', value: stats.totalListings, href: '/admin/results?type=listings' },
-    { label: 'Pending listings', value: stats.pendingListings, href: '/admin/results?type=pending-listings' },
+    { label: 'Pending listings', value: stats.pendingListings, href: '/admin/pending-listings' },
     { label: 'Approved listings', value: stats.approvedListings, href: '/admin/results?type=approved-listings' },
     { label: 'Draft listings', value: stats.draftListings },
     { label: 'Rejected listings', value: stats.rejectedListings },

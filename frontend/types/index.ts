@@ -35,14 +35,22 @@ export interface Campus {
   createdAt?: string;
 }
 
-export interface CampusSuggestion {
-  name: string;
-  address: string;
-  location: string;
-}
-
 export interface CampusAddressSuggestion {
   address: string;
+}
+
+export interface ListingRoutePreview {
+  latitude: number;
+  longitude: number;
+  campusCoordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  distanceFromCampus: number;
+  routeGeometry: {
+    type: 'LineString';
+    coordinates: Array<[number, number]>;
+  };
 }
 
 export interface ListingPhoto {

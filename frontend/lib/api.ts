@@ -3,11 +3,11 @@ import {
   AppNotification,
   Campus,
   CampusAddressSuggestion,
-  CampusSuggestion,
   Conversation,
   Favourite,
   Institution,
   Listing,
+  ListingRoutePreview,
   ListingReport,
   Message,
   Pagination,
@@ -162,10 +162,6 @@ export const campusApi = {
   },
 
   getCampusById: (id: string) => apiFetch<Campus>(`/campuses/${id}`),
-  getCampusSuggestions: (institutionId: string) => {
-    const query = new URLSearchParams({ institutionId });
-    return apiFetch<CampusSuggestion[]>(`/campuses/suggestions?${query}`);
-  },
   getCampusAddressSuggestions: (address: string, locality: string, campusName: string) => {
     const query = new URLSearchParams({ address, locality, campusName });
     return apiFetch<CampusAddressSuggestion[]>(`/campuses/address-suggestions?${query}`);
@@ -232,6 +228,12 @@ export const listingApi = {
     apiFetch<Listing>('/listings', {
       method: 'POST',
       body,
+    }),
+
+  previewLocation: (data: { campusId: string; address: string }) =>
+    apiFetch<ListingRoutePreview>('/listings/location-preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
   updateListing: (id: string, data: Record<string, unknown>) =>

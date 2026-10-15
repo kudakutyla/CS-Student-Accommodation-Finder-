@@ -1,13 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AuthGuard } from '../../../../components/auth-guard';
 import { campusApi, listingApi } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth-context';
-import type { Campus, Institution } from '../../../../types';
+import type { Campus, Institution, ListingRoutePreview } from '../../../../types';
+
+const RoutePreviewMap = dynamic(() => import('../../../../components/route-preview-map'), {
+  ssr: false,
+  loading: () => <p role="status" className="py-8 text-center text-sm text-[var(--text-muted)]">Loading route map...</p>,
+});
 
 const commonAmenities = [
   'Wi-Fi / Internet',
@@ -43,6 +49,10 @@ export default function CreateListingPage() {
   const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const photoPreviewsRef = useRef<string[]>([]);
+  const previewRequestId = useRef(0);
+  const [routePreview, setRoutePreview] = useState<ListingRoutePreview | null>(null);
+  const [isPreviewingRoute, setIsPreviewingRoute] = useState(false);
+  const [routePreviewError, setRoutePreviewError] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,8 +73,47 @@ export default function CreateListingPage() {
   const visibleCampuses = form.institutionId ? campuses.filter((campus) => campus.institutionId === form.institutionId) : campuses;
   const allAmenities = Array.from(new Set([...selectedAmenities, ...customAmenities]));
 
+  const invalidateRoutePreview = () => {
+    previewRequestId.current += 1;
+    setRoutePreview(null);
+    setRoutePreviewError('');
+    setIsPreviewingRoute(false);
+  };
+
   const updateField = (field: keyof typeof initialForm, value: string) => {
+    if (field === 'address' || field === 'campusId') invalidateRoutePreview();
     setForm((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const previewListingRoute = async () => {
+    if (!form.campusId) {
+      setRoutePreviewError('Select a campus before previewing the route.');
+      return;
+    }
+    if (form.address.trim().length < 3) {
+      setRoutePreviewError('Enter a complete property address before previewing the route.');
+      return;
+    }
+
+    const requestId = ++previewRequestId.current;
+    setRoutePreview(null);
+    setRoutePreviewError('');
+    setIsPreviewingRoute(true);
+    try {
+      const response = await listingApi.previewLocation({
+        campusId: form.campusId,
+        address: form.address.trim(),
+      });
+      if (previewRequestId.current === requestId) setRoutePreview(response.data);
+    } catch (previewError) {
+      if (previewRequestId.current === requestId) {
+        setRoutePreviewError(previewError instanceof Error
+          ? previewError.message
+          : 'Unable to preview the route. Check the address and try again.');
+      }
+    } finally {
+      if (previewRequestId.current === requestId) setIsPreviewingRoute(false);
+    }
   };
 
   const toggleAmenity = (amenity: string) => {
@@ -144,7 +193,7 @@ export default function CreateListingPage() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Institution</label>
-              <select required value={form.institutionId} onChange={(event) => setForm((previous) => ({ ...previous, institutionId: event.target.value, campusId: '' }))} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]">
+              <select required value={form.institutionId} onChange={(event) => { invalidateRoutePreview(); setForm((previous) => ({ ...previous, institutionId: event.target.value, campusId: '' })); }} className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]">
                 <option value="">Select an institution</option>
                 {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
               </select>
@@ -168,6 +217,29 @@ export default function CreateListingPage() {
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-[var(--charcoal)]">Property address</label>
               <input required value={form.address} onChange={(event) => updateField('address', event.target.value)} placeholder="Street address, suburb, city" className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-sage)]" />
+              <button
+                type="button"
+                onClick={() => void previewListingRoute()}
+                disabled={isPreviewingRoute || !form.campusId || form.address.trim().length < 3}
+                className="mt-3 rounded-xl border border-[var(--beige)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--brown-dark)] hover:bg-[var(--cream)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPreviewingRoute ? 'Calculating route...' : 'Preview route to campus'}
+              </button>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">The route and driving distance are calculated by the server using the address above and the selected campus.</p>
+              {routePreviewError ? <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{routePreviewError}</p> : null}
+              {routePreview && form.campusId ? (
+                <section className="mt-4 rounded-2xl border border-[var(--beige)] bg-[var(--warm-white)] p-4" aria-label="Route preview">
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 className="font-semibold text-[var(--charcoal)]">Driving route to {visibleCampuses.find((campus) => campus.id === form.campusId)?.name || 'campus'}</h2>
+                    <p className="text-sm font-semibold text-[var(--accent-terracotta)]">{routePreview.distanceFromCampus.toFixed(1)} km</p>
+                  </div>
+                  <RoutePreviewMap
+                    preview={routePreview}
+                    campusName={visibleCampuses.find((campus) => campus.id === form.campusId)?.name || 'Campus'}
+                  />
+                  <p className="mt-2 text-xs text-[var(--text-muted)]">Map tiles © OpenStreetMap contributors · Route distance calculated by OSRM.</p>
+                </section>
+              ) : null}
             </div>
 
             <div>

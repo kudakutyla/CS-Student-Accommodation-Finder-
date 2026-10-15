@@ -6,9 +6,65 @@ import {
   listingSearchQuerySchema,
 } from '../validators/listing.validator';
 import { sendSuccess, sendError } from '../utils/response';
-import { LocationServiceError, resolveListingLocation } from '../utils/geocode';
+import {
+  LocationServiceError,
+  resolveListingLocation,
+  resolveListingRoutePreview,
+} from '../utils/geocode';
 import { deleteStoredFile, storeUploadedFile } from '../utils/file-storage';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+const listingLocationPreviewSchema = z.object({
+  campusId: z.string().trim().min(1).max(100),
+  address: z.string().trim().min(3).max(300),
+});
+
+export async function previewListingLocation(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    sendError(res, 'Authentication required', 401);
+    return;
+  }
+  if (req.user.role !== 'LANDLORD') {
+    sendError(res, 'Only landlords can preview accommodation routes.', 403);
+    return;
+  }
+  if (!req.user.isVerified) {
+    sendError(res, 'Your landlord account must be verified before you can preview a route.', 403);
+    return;
+  }
+
+  const parsed = listingLocationPreviewSchema.safeParse(req.body);
+  if (!parsed.success) {
+    sendError(res, parsed.error.errors[0].message, 400, parsed.error.format());
+    return;
+  }
+
+  try {
+    const campus = await prisma.campus.findUnique({
+      where: { id: parsed.data.campusId },
+      include: { institution: { select: { isActive: true } } },
+    });
+    if (!campus || !campus.isActive || !campus.institution?.isActive) {
+      sendError(res, 'Selected campus is not available. Choose an active campus under an active institution.', 404);
+      return;
+    }
+
+    const preview = await resolveListingRoutePreview(
+      parsed.data.address,
+      campus.address,
+      { name: campus.name, locality: campus.location }
+    );
+    sendSuccess(res, preview);
+  } catch (error) {
+    if (error instanceof LocationServiceError) {
+      sendError(res, error.message, error.statusCode);
+      return;
+    }
+    console.error('previewListingLocation error:', error);
+    sendError(res, 'Failed to preview the route to campus.', 500);
+  }
+}
 
 export async function createListing(req: Request, res: Response): Promise<void> {
   const storedPhotos: Array<{ filename: string; mimetype: string }> = [];

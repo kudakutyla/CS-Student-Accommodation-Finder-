@@ -30,7 +30,16 @@ export type CampusAddressSuggestion = {
 };
 type OsrmResponse = {
   code?: string;
-  routes?: Array<{ distance?: number }>;
+  routes?: Array<{ distance?: number; geometry?: unknown }>;
+};
+export type RouteGeometry = {
+  type: 'LineString';
+  coordinates: Array<[number, number]>;
+};
+export type ListingRoutePreview = Coordinates & {
+  campusCoordinates: Coordinates;
+  distanceFromCampus: number;
+  routeGeometry: RouteGeometry;
 };
 export type NearbyAccommodationLocation = Coordinates & { address: string };
 
@@ -196,6 +205,10 @@ async function searchAddress(
     throw new LocationServiceError('OpenStreetMap address lookup is temporarily unavailable. Try again later.', 503);
   }
   if (response.status === 429 || response.status >= 500) {
+    console.warn('Nominatim address lookup received a transient HTTP response.', {
+      status: response.status,
+      retryAfter: response.headers.get('retry-after'),
+    });
     throw new LocationServiceError('OpenStreetMap address lookup is busy or temporarily unavailable. Try again later.', 503);
   }
   if (!response.ok) {
@@ -379,9 +392,48 @@ export async function calculateRouteDistanceBetweenCoordinates(
   origin: Coordinates,
   destination: Coordinates
 ): Promise<number> {
+  const route = await fetchRouteBetweenCoordinates(origin, destination, false);
+  return route.distanceKm;
+}
+
+function isRouteGeometry(value: unknown): value is RouteGeometry {
+  if (!value || typeof value !== 'object' || !('type' in value) || value.type !== 'LineString' ||
+    !('coordinates' in value) || !Array.isArray(value.coordinates) || value.coordinates.length < 2) {
+    return false;
+  }
+  return value.coordinates.every((coordinate): coordinate is [number, number] =>
+    Array.isArray(coordinate) &&
+    coordinate.length >= 2 &&
+    typeof coordinate[0] === 'number' &&
+    Number.isFinite(coordinate[0]) &&
+    coordinate[0] >= -180 &&
+    coordinate[0] <= 180 &&
+    typeof coordinate[1] === 'number' &&
+    Number.isFinite(coordinate[1]) &&
+    coordinate[1] >= -90 &&
+    coordinate[1] <= 90
+  );
+}
+
+function fetchRouteBetweenCoordinates(
+  origin: Coordinates,
+  destination: Coordinates,
+  includeGeometry: true
+): Promise<{ distanceKm: number; geometry: RouteGeometry }>;
+function fetchRouteBetweenCoordinates(
+  origin: Coordinates,
+  destination: Coordinates,
+  includeGeometry: false
+): Promise<{ distanceKm: number }>;
+async function fetchRouteBetweenCoordinates(
+  origin: Coordinates,
+  destination: Coordinates,
+  includeGeometry: boolean
+): Promise<{ distanceKm: number; geometry?: RouteGeometry }> {
   const url = new URL(`${OSRM_URL}/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`);
-  url.searchParams.set('overview', 'false');
+  url.searchParams.set('overview', includeGeometry ? 'full' : 'false');
   url.searchParams.set('alternatives', 'false');
+  if (includeGeometry) url.searchParams.set('geometries', 'geojson');
 
   let response: Response;
   try {
@@ -400,12 +452,18 @@ export async function calculateRouteDistanceBetweenCoordinates(
     throw new LocationServiceError('OpenStreetMap returned an unreadable route result. Try again later.', 503);
   }
 
-  const distanceMeters = result.code === 'Ok' ? result.routes?.[0]?.distance : undefined;
+  const route = result.code === 'Ok' ? result.routes?.[0] : undefined;
+  const distanceMeters = route?.distance;
   if (typeof distanceMeters !== 'number' || !Number.isFinite(distanceMeters) || distanceMeters < 0) {
     throw new LocationServiceError('OpenStreetMap did not return a valid route distance. Check both addresses and try again.', 422);
   }
 
-  return distanceMeters / 1000;
+  const distanceKm = distanceMeters / 1000;
+  if (!includeGeometry) return { distanceKm };
+  if (!isRouteGeometry(route?.geometry)) {
+    throw new LocationServiceError('OpenStreetMap returned an invalid route geometry. Try again later.', 503);
+  }
+  return { distanceKm, geometry: route.geometry };
 }
 
 export async function calculateRouteDistanceKm(origin: string, destination: string): Promise<number> {
@@ -441,4 +499,30 @@ export async function resolveListingLocation(
     : undefined);
   const distanceFromCampus = await calculateRouteDistanceBetweenCoordinates(coordinates, campusCoordinates);
   return { ...coordinates, distanceFromCampus };
+}
+
+export async function resolveListingRoutePreview(
+  propertyAddress: string,
+  campusAddress: string,
+  campusContext?: { name: string; locality: string }
+): Promise<ListingRoutePreview> {
+  const cleanPropertyAddress = propertyAddress.trim();
+  const cleanCampusAddress = campusAddress.trim();
+  if (!cleanPropertyAddress || !cleanCampusAddress) {
+    throw new LocationServiceError('Both property and campus addresses are required.', 422);
+  }
+
+  const coordinates = await resolveAddressCoordinates(cleanPropertyAddress, campusContext
+    ? { locality: campusContext.locality, label: 'property' }
+    : undefined);
+  const campusCoordinates = await resolveAddressCoordinates(cleanCampusAddress, campusContext
+    ? { locality: campusContext.locality, fallbackQuery: campusContext.name, label: 'campus' }
+    : undefined);
+  const route = await fetchRouteBetweenCoordinates(coordinates, campusCoordinates, true);
+  return {
+    ...coordinates,
+    campusCoordinates,
+    distanceFromCampus: route.distanceKm,
+    routeGeometry: route.geometry,
+  };
 }

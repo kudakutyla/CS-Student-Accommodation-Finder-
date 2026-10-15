@@ -88,6 +88,23 @@ traffic low; deployments with multiple backend instances or higher usage should 
 self-hosted or contracted geocoding/routing service before scaling. Do not fall back to
 approximate or client-provided coordinates when a lookup fails.
 
+The listing route preview displays its server-calculated OSRM route with MapLibre GL JS and
+OpenStreetMap's public raster tile service. Map tiles are requested by the browser and include
+visible OpenStreetMap contributor attribution. The public tile service has usage restrictions,
+limited capacity, and no SLA; keep preview use low-volume and configure a self-hosted or
+contracted tile provider before scaling. MapLibre renders the route but never calculates or
+substitutes the server-side route distance.
+
+If the admin Add Campus form displays `OpenStreetMap address lookup is busy or temporarily
+unavailable`, Nominatim returned HTTP 429 (rate limited) or a 5xx response. The backend logs
+the upstream status and any `Retry-After` value without logging the searched address. In the
+Render dashboard, open the `student-accommodation-backend` service's Logs and inspect entries
+at the time of the failed request. A 429 indicates provider rate limiting; a 5xx indicates a
+Nominatim service failure. Do not automatically retry the failed lookup. The one-request-per-
+second throttle is in-memory and per process; it does not coordinate multiple Render
+instances. Keep this service at one instance for low-volume public Nominatim use, and move to
+a self-hosted or contracted provider before scaling.
+
 Admin campus suggestions use the authenticated `GET /api/campuses/suggestions?institutionId=...`
 endpoint. On an explicit administrator action, the backend queries Overpass for South African
 university/college features tagged with the selected institution name or short name as
@@ -101,13 +118,9 @@ contributors wherever geographic suggestions are presented.
 Local uploads use a filesystem-backed adapter; production must provide durable storage for
 `UPLOAD_DIR` rather than an ephemeral container filesystem.
 
-Campus creation and property listing submission require `GOOGLE_MAPS_API_KEY` to be configured
-in the backend environment. Enable the Geocoding API and Routes API for the key, restrict it to
-the backend deployment, and configure it in each local/deployment secret store. Without this key,
-the API must reject address operations clearly rather than inventing or falling back to coordinates.
-On Render, add the key under the `student-accommodation-backend` web service's Environment
-settings, then redeploy the service. The value is intentionally not stored in `render.yaml`,
-frontend environment variables, or source control.
+The current OpenStreetMap/OSRM geocoding and route-distance implementation does not require
+`GOOGLE_MAPS_API_KEY`. Adding that variable in Render does not change Nominatim availability
+or rate limits. Do not add Nominatim credentials; the public service does not issue API keys.
 
 Forgot-password mail uses the SMTP variables above and `CLIENT_URL` to build reset links.
 Configure a verified sender and a backend-only SMTP credential for every environment. Password
