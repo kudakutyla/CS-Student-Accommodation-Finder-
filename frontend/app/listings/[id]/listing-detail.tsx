@@ -3,11 +3,20 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Bookmark, MessageCircle, Flag, Star } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookOpen, Droplets, MessageCircle, Flag, ShieldCheck, Star, Wifi, Zap } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ListingImage } from '../../../components/listing-image';
 import { useAuth } from '../../../lib/auth-context';
 import { conversationApi, favouriteApi, listingApi, reportApi, reviewApi } from '../../../lib/api';
 import type { Listing, Review } from '../../../types';
+
+const amenityIcons: Record<string, { Icon: LucideIcon; color: string }> = {
+  wifi: { Icon: Wifi, color: 'text-sky-700' },
+  security: { Icon: ShieldCheck, color: 'text-emerald-700' },
+  'water tank': { Icon: Droplets, color: 'text-blue-700' },
+  'study desk': { Icon: BookOpen, color: 'text-amber-700' },
+  'prepaid electricity': { Icon: Zap, color: 'text-orange-700' },
+};
 
 export default function ListingDetail({ listingId }: { listingId: string }) {
   const router = useRouter();
@@ -159,7 +168,15 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
             <span className="border border-[var(--beige)] px-3 py-1.5">{listing.accommodationType.replaceAll('_', ' ')}</span>
             <span className="border border-[var(--beige)] px-3 py-1.5">{average ? `${average.toFixed(1)} / 5` : 'No rating'} ({reviews.length})</span>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">{listing.amenities.map((amenity) => <span key={amenity} className="bg-[var(--cream)] px-3 py-1.5 text-sm">{amenity}</span>)}</div>
+          <div className="mt-5 flex flex-wrap gap-2">{listing.amenities.map((amenity) => {
+            const icon = amenityIcons[amenity.trim().toLowerCase()];
+            return (
+              <span key={amenity} className="inline-flex items-center gap-1.5 bg-[var(--cream)] px-3 py-1.5 text-sm">
+                {icon ? <icon.Icon size={16} aria-hidden="true" className={icon.color} /> : null}
+                {amenity}
+              </span>
+            );
+          })}</div>
           {listing.provider || listing.owner ? <p className="mt-6 border-t border-[var(--beige)] pt-4 text-sm">Provided by <strong>{listing.provider?.name ?? listing.owner?.name}</strong>{(listing.provider?.isVerified ?? listing.owner?.isVerified) ? ' · Verified landlord' : ''}</p> : null}
           {isAuthenticated && user?.role === 'STUDENT' ? (
             <div className="mt-6 flex flex-wrap gap-3">
