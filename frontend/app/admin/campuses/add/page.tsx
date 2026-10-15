@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { AuthGuard } from '../../../../components/auth-guard';
 import { campusApi } from '../../../../lib/api';
-import type { CampusAddressSuggestion, CampusSuggestion, Institution } from '../../../../types';
+import type { CampusAddressSuggestion, Institution } from '../../../../types';
 
 export default function AddCampusPage() {
   return (
@@ -24,9 +24,6 @@ function AddCampusPageContent() {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [address, setAddress] = useState('');
-  const [campusSuggestions, setCampusSuggestions] = useState<CampusSuggestion[]>([]);
-  const [searchingCampuses, setSearchingCampuses] = useState(false);
-  const [campusSearchError, setCampusSearchError] = useState('');
   const [addressSuggestions, setAddressSuggestions] = useState<CampusAddressSuggestion[]>([]);
   const [searchingAddresses, setSearchingAddresses] = useState(false);
   const [addressSearchMessage, setAddressSearchMessage] = useState('');
@@ -46,28 +43,6 @@ function AddCampusPageContent() {
     });
     return () => { active = false; };
   }, []);
-
-  async function searchCampuses(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedInstitution) {
-      setCampusSearchError('Choose an institution before searching for its campuses.');
-      return;
-    }
-    setSearchingCampuses(true);
-    setCampusSearchError('');
-    setCampusSuggestions([]);
-    try {
-      const response = await campusApi.getCampusSuggestions(selectedInstitution.id);
-      setCampusSuggestions(response.data);
-      if (response.data.length === 0) {
-        setCampusSearchError('No campuses tagged for this institution were found in OpenStreetMap. You can enter campus details manually.');
-      }
-    } catch (err) {
-      setCampusSearchError(err instanceof Error ? err.message : 'Unable to search campus suggestions. You can still enter the details manually.');
-    } finally {
-      setSearchingCampuses(false);
-    }
-  }
 
   async function searchAddresses() {
     if (address.trim().length < 3 || location.trim().length < 2) {
@@ -143,50 +118,10 @@ function AddCampusPageContent() {
         {!loading && institutionId && !selectedInstitutionExists ? <p role="alert" className="mt-5 border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm text-amber-900">The selected institution could not be found. Choose an institution below or return to institution management.</p> : null}
         {!loading && !institutionId ? <p role="status" className="mt-5 text-sm text-[var(--text-muted)]">Choose an institution to continue, or return to institution management.</p> : null}
 
-        <section className="mt-6 border border-[var(--beige)] bg-white p-5">
-          <h2 className="font-semibold text-[var(--charcoal)]">Find campus options for {selectedInstitution?.name || 'this institution'}</h2>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">Show campuses mapped in OpenStreetMap and associated with this institution. Choose a result to fill the form; it is not saved until you add the campus.</p>
-          <form onSubmit={searchCampuses} className="mt-4">
-            <button
-              type="submit"
-              disabled={searchingCampuses || loading || !selectedInstitutionExists}
-              className="bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {searchingCampuses ? 'Loading campus options...' : 'Find campus options'}
-            </button>
-          </form>
-          {campusSearchError ? <p role="status" className="mt-3 text-sm text-[var(--text-muted)]">{campusSearchError}</p> : null}
-          {campusSuggestions.length > 0 ? (
-            <ul className="mt-3 divide-y divide-[var(--beige)] border-t border-[var(--beige)]">
-              {campusSuggestions.map((suggestion, index) => (
-                <li key={`${suggestion.name}-${suggestion.address}-${index}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setName(suggestion.name);
-                      setAddress(suggestion.address);
-                      if (suggestion.location) setLocation(suggestion.location);
-                      setAddressSuggestions([]);
-                      setAddressSearchMessage('');
-                      setCampusSuggestions([]);
-                      setCampusSearchError('');
-                    }}
-                    className="w-full py-3 text-left hover:bg-[var(--cream)]"
-                  >
-                    <span className="block text-sm font-semibold text-[var(--charcoal)]">{suggestion.name}</span>
-                    <span className="mt-1 block text-xs text-[var(--text-muted)]">{suggestion.address}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="mt-3 text-[11px] text-[var(--text-muted)]">Only campuses mapped and tagged for this institution in OpenStreetMap appear here; unmapped campuses can be entered manually. © OpenStreetMap contributors.</p>
-        </section>
-
         <form onSubmit={saveCampus} className="mt-6 grid gap-4 border border-[var(--beige)] bg-white p-5 sm:grid-cols-2">
           <label className="grid gap-1 text-xs font-semibold sm:col-span-2">
             Institution
-            <select required disabled={loading} value={selectedInstitutionId} onChange={(event) => { setSelectedInstitutionId(event.target.value); setCampusSuggestions([]); setCampusSearchError(''); }} className="border border-[var(--beige)] px-3 py-2.5 text-sm font-normal">
+            <select required disabled={loading} value={selectedInstitutionId} onChange={(event) => setSelectedInstitutionId(event.target.value)} className="border border-[var(--beige)] px-3 py-2.5 text-sm font-normal">
               <option value="">Select an institution</option>
               {institutions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}
             </select>
@@ -207,7 +142,7 @@ function AddCampusPageContent() {
             <button type="button" onClick={() => void searchAddresses()} disabled={searchingAddresses || loading} className="border border-[var(--beige)] px-3 py-2 text-sm font-semibold disabled:opacity-50">
               {searchingAddresses ? 'Searching addresses...' : 'Find matching addresses'}
             </button>
-            <p className="mt-2 text-xs text-[var(--text-muted)]">Enter a street, suburb, or campus name and the city/region, then choose a matching OpenStreetMap address. You can also use a mapped campus option above.</p>
+            <p className="mt-2 text-xs text-[var(--text-muted)]">Enter a street, suburb, or campus name and the city/region, then choose a matching OpenStreetMap address.</p>
             {addressSearchMessage ? <p role="status" className="mt-2 text-sm text-[var(--text-muted)]">{addressSearchMessage}</p> : null}
             {addressSuggestions.length > 0 ? (
               <ul className="mt-2 divide-y divide-[var(--beige)] border border-[var(--beige)]">

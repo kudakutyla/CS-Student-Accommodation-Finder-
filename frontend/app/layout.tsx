@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { AuthProvider } from "../lib/auth-context";
 import AppShell from "../components/app-shell";
 import "./globals.css";

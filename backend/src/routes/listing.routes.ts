@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createListing,
+  previewListingLocation,
   getMyListings,
   getPublicListings,
   getListingById,
@@ -24,6 +25,15 @@ router.get('/', getPublicListings);
 
 // Landlord's own listings (Must come before /:id)
 router.get('/my', authenticate, authorize('LANDLORD'), getMyListings);
+
+// Verified landlords can preview a server-calculated route without creating a listing.
+router.post(
+  '/location-preview',
+  authenticate,
+  authorize('LANDLORD'),
+  requireVerifiedLandlord,
+  previewListingLocation
+);
 
 // Specific listing detail (public or authenticated)
 router.get('/:id', authenticateOptional, getListingById);

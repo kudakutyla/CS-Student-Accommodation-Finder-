@@ -53,6 +53,8 @@ request failures through explicit error states.
   using OpenStreetMap Nominatim.
 - Listing route distance is calculated server-side between those addresses using OSRM; failed
   lookups must not fall back to campus coordinates.
+- MapLibre is display-only. Route geometry, coordinates, and distance come from the
+  authenticated server-side listing location preview endpoint.
 - The public Nominatim and OSRM endpoints have usage limits and no uptime guarantees. Respect
   Nominatim's one-request-per-second limit, and use a self-hosted or contracted provider before
   scaling beyond low traffic.
@@ -67,8 +69,8 @@ Use:
 - Next.js App Router, React, TypeScript, Tailwind CSS v4 — frontend.
 
 Do not use: any auth library other than the established JWT + bcrypt pattern, any ORM other
-than Prisma, or client-side distance calculation as a substitute for the server-side Google
-Maps route-distance calculation.
+than Prisma, or client-side distance calculation as a substitute for the server-side OSRM
+route-distance calculation.
 
 ## 5. Data model
 
@@ -96,6 +98,11 @@ Admins can search South African campus address candidates at
 `GET /api/campuses/address-suggestions` with `address`, `locality`, and optional
 `campusName` query parameters; address lookup is performed server-side using
 OpenStreetMap Nominatim.
+Verified landlords can preview a property-to-campus driving route at
+`POST /api/listings/location-preview` with `campusId` and `address`; the backend
+returns validated coordinates, OSRM GeoJSON route geometry, and distance without
+creating a listing. MapLibre renders this response only. Listing creation
+recalculates coordinates and route distance server-side before persisting.
 Students can retrieve only their own submitted reports at
 `GET /api/reports/mine`; report-status updates are also delivered through the authenticated
 notifications API. Students submit a required 1–5 rating and an optional comment to
