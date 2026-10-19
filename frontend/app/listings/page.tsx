@@ -237,7 +237,7 @@ function ListingsPageContent() {
         <div className="space-y-5">
           {error ? <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}<button onClick={() => setRetryKey((value) => value + 1)} className="ml-3 font-semibold underline">Retry</button></p> : null}
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
             {loading ? (
               <div className="col-span-full rounded-[24px] border border-[var(--beige)] bg-white p-8 text-center text-sm text-[var(--text-muted)]">Loading available homes...</div>
             ) : items.length === 0 ? (
@@ -245,25 +245,25 @@ function ListingsPageContent() {
             ) : (
               items.map((listing) => (
                 <Link key={listing.id} href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[26px] border border-[var(--beige)] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-                  <div className="relative h-52 overflow-hidden bg-[var(--cream)]">
-                    <ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={listing.title} sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover transition duration-300 group-hover:scale-105" />
+                  <div className="relative h-32 overflow-hidden bg-[var(--cream)] sm:h-52">
+                    <ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={listing.title} sizes="(max-width: 768px) 50vw, (max-width: 1280px) 50vw, 33vw" className="object-cover transition duration-300 group-hover:scale-105" />
                   </div>
 
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-[var(--charcoal)]">{listing.title}</p>
-                        <p className="mt-1 text-sm text-[var(--accent-sage)]">{listing.campus?.name || 'Campus'}</p>
+                  <div className="p-2 sm:p-4">
+                    <div className="flex min-w-0 items-start justify-between gap-1.5 sm:gap-3">
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 text-sm font-semibold text-[var(--charcoal)] sm:text-base">{listing.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs text-[var(--accent-sage)] sm:text-sm">{listing.campus?.name || 'Campus'}</p>
                       </div>
-                      <span className="font-semibold text-[var(--accent-terracotta)]">R{listing.pricePerMonth.toLocaleString()}</span>
+                      <span className="shrink-0 text-sm font-semibold text-[var(--accent-terracotta)] sm:text-base">R{listing.pricePerMonth.toLocaleString()}</span>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] sm:mt-3 sm:text-xs">
                       <span className="font-medium text-[var(--accent-terracotta)]">{listing.accommodationType}</span>
                       <span className="font-medium text-[var(--success)]">{listing.availableRooms} rooms left</span>
                     </div>
 
-                    <div className="mt-4 min-w-0 text-xs text-[var(--brown-dark)]">
+                    <div className="mt-2 min-w-0 text-[10px] text-[var(--brown-dark)] sm:mt-4 sm:text-xs">
                       <p className="flex min-w-0 items-start gap-1.5">
                         <MapPin size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--accent-sage)]" />
                         <span className="min-w-0 break-words">{listing.address}</span>
