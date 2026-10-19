@@ -31,6 +31,21 @@ export default function LandlordListingsPage() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  useEffect(() => {
+    if (loading) return;
+    const targetListingId = new URLSearchParams(window.location.search).get('listingId');
+    if (targetListingId) {
+      const target = document.getElementById(`landlord-listing-${targetListingId}`);
+      if (target) {
+        target.style.backgroundColor = 'var(--cream)';
+        target.style.borderRadius = '0.75rem';
+        target.style.outline = '2px solid var(--accent-terracotta)';
+        target.style.outlineOffset = '2px';
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [listings, loading]);
+
   return (
     <AuthGuard allowedRoles={['LANDLORD']}>
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -65,7 +80,7 @@ export default function LandlordListingsPage() {
           ) : (
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               {listings.map((listing) => (
-                <article key={listing.id} className="flex flex-col justify-between gap-5 border border-[var(--beige)] bg-[var(--cream)] p-4 sm:flex-row sm:items-center">
+                <article id={`landlord-listing-${listing.id}`} key={listing.id} className="flex flex-col justify-between gap-5 border border-[var(--beige)] bg-[var(--cream)] p-4 sm:flex-row sm:items-center">
                   <div className="flex items-start gap-4">
                     <div className="relative h-16 w-20 shrink-0 overflow-hidden bg-[var(--sand)]">
                       <ListingImage src={listing.primaryPhoto || listing.photos?.[0]?.photoUrl} alt={`${listing.title} property`} sizes="80px" />

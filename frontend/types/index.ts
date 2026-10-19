@@ -36,6 +36,11 @@ export interface Campus {
   createdAt?: string;
 }
 
+export interface PublicCampusStats {
+  campusCount: number;
+  approvedListingCount: number;
+}
+
 export interface CampusAddressSuggestion {
   address: string;
 }
@@ -109,6 +114,8 @@ export interface AppNotification {
   type: string;
   title: string;
   message: string;
+  reportId?: string | null;
+  listingId?: string | null;
   isRead: boolean;
   createdAt: string;
 }
@@ -120,6 +127,7 @@ export interface ListingReport {
   status: 'PENDING' | 'IN_REVIEW' | 'RESOLVED' | 'DISMISSED';
   adminReviewNote?: string | null;
   createdAt: string;
+  updatedAt?: string;
   listing: Pick<Listing, 'id' | 'title' | 'approvalStatus'>;
   user: Pick<User, 'id' | 'name' | 'email'>;
 }
@@ -129,6 +137,7 @@ export interface StudentReport {
   reason: string;
   description: string;
   status: ListingReport['status'];
+  adminReviewNote?: string | null;
   createdAt: string;
   updatedAt: string;
   listing: Pick<Listing, 'id' | 'title'>;

@@ -8,7 +8,7 @@ import {
   updateListing,
   deleteListing,
 } from '../controllers/listing.controller';
-import { createReview, getListingReviews } from '../controllers/review.controller';
+import { createReview, getListingReviews, updateMyReview } from '../controllers/review.controller';
 import { createReport } from '../controllers/report.controller';
 import { listingPhotosUpload } from '../middleware/upload.middleware';
 import {
@@ -39,6 +39,7 @@ router.post(
 router.get('/:id', authenticateOptional, getListingById);
 router.get('/:id/reviews', getListingReviews);
 router.post('/:id/reviews', authenticate, authorize('STUDENT'), createReview);
+router.patch('/:id/reviews/me', authenticate, authorize('STUDENT'), updateMyReview);
 router.post('/:id/reports', authenticate, authorize('STUDENT'), createReport);
 
 // Landlord listing creation (strictly requires verified landlord)

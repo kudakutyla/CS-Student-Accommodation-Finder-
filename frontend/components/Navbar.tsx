@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { useAuth } from '../lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import { getMediaUrl } from '../lib/api';
+import { UserCircle } from 'lucide-react';
+import { ThemeToggle } from './theme-toggle';
 
 export default function Navbar() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -52,6 +54,7 @@ export default function Navbar() {
 
         {/* Auth CTA & Navigation */}
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
               {user.role === 'STUDENT' ? <Link href="/student/favourites" className="hidden text-xs font-semibold text-[var(--charcoal)] hover:underline sm:inline">Saved homes</Link> : null}
@@ -60,6 +63,7 @@ export default function Navbar() {
               <Link href={user.role === 'LANDLORD' ? '/landlord/profile' : user.role === 'STUDENT' ? '/student/profile' : '/admin/dashboard'} className="rounded-xl bg-[var(--beige)] px-3.5 py-1.5 text-xs font-semibold text-[var(--charcoal)] transition-all hover:bg-[var(--sand)] flex items-center gap-2">
                 {user.profilePicture ? <Image src={getMediaUrl(user.profilePicture)} alt={user.name} width={24} height={24} unoptimized className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--warm-white)] text-[10px] font-bold">{user.name.slice(0, 1).toUpperCase()}</span>}
                 <span>{user.name}</span>
+                <UserCircle size={17} aria-hidden="true" />
               </Link>
               <button
                 onClick={handleLogout}

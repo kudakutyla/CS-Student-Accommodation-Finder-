@@ -159,6 +159,7 @@ model Listing {
   conversations      Conversation[]
   reviews            Review[]
   reports            Report[]
+  notifications      Notification[]
 
   @@index([campusId])
   @@index([ownerId])
@@ -261,6 +262,7 @@ model Report {
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   listing     Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   @@index([listingId])
   @@index([userId])
@@ -275,10 +277,16 @@ model Notification {
   message   String   @db.Text
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+  reportId  String?
+  listingId String?
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  report    Report?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  listing   Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([reportId])
+  @@index([listingId])
 }
 
 model AuditLog {

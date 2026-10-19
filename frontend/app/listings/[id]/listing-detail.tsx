@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Bookmark, BookOpen, Droplets, MessageCircle, Flag, ShieldCheck, Star, Wifi, Zap } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookOpen, Car, Droplets, MapPin, MessageCircle, Flag, ShieldCheck, Sparkles, Star, WashingMachine, Wifi, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ListingImage } from '../../../components/listing-image';
 import { useAuth } from '../../../lib/auth-context';
@@ -12,11 +12,26 @@ import type { Listing, Review } from '../../../types';
 
 const amenityIcons: Record<string, { Icon: LucideIcon; color: string }> = {
   wifi: { Icon: Wifi, color: 'text-sky-700' },
+  internet: { Icon: Wifi, color: 'text-sky-700' },
   security: { Icon: ShieldCheck, color: 'text-emerald-700' },
-  'water tank': { Icon: Droplets, color: 'text-blue-700' },
-  'study desk': { Icon: BookOpen, color: 'text-amber-700' },
-  'prepaid electricity': { Icon: Zap, color: 'text-orange-700' },
+  water: { Icon: Droplets, color: 'text-blue-700' },
+  study: { Icon: BookOpen, color: 'text-amber-700' },
+  desk: { Icon: BookOpen, color: 'text-amber-700' },
+  prepaid: { Icon: Zap, color: 'text-orange-700' },
+  electricity: { Icon: Zap, color: 'text-orange-700' },
+  laundry: { Icon: WashingMachine, color: 'text-cyan-700' },
+  washing: { Icon: WashingMachine, color: 'text-cyan-700' },
+  parking: { Icon: Car, color: 'text-violet-700' },
+  other: { Icon: Sparkles, color: 'text-rose-700' },
 };
+
+function getAmenityIcon(amenity: string) {
+  const normalizedAmenity = amenity.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matchingAmenity = Object.entries(amenityIcons).find(([name]) =>
+    name === 'other' ? false : normalizedAmenity.includes(name)
+  );
+  return amenityIcons[matchingAmenity?.[0] ?? 'other'];
+}
 
 export default function ListingDetail({ listingId }: { listingId: string }) {
   const router = useRouter();
@@ -31,6 +46,7 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
+  const [isEditingReview, setIsEditingReview] = useState(false);
   const [reportReason, setReportReason] = useState('Inaccurate information');
   const [reportDescription, setReportDescription] = useState('');
 
@@ -65,6 +81,12 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
     });
   }, [isAuthenticated, listingId, user?.role]);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(''), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
   async function toggleFavourite() {
     setBusy(true);
     setError('');
@@ -97,10 +119,22 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
     setBusy(true);
     setError('');
     try {
-      const response = await reviewApi.create(listingId, { rating, comment });
-      setReviews((current) => [response.data, ...current]);
-      setComment('');
-      setNotice('Your review has been submitted.');
+      if (isEditingReview) {
+        const ownReview = reviews.find((review) => review.user.id === user?.id);
+        if (!ownReview) {
+          setError('Your review could not be found. Refresh the page and try again.');
+          return;
+        }
+        const response = await reviewApi.updateMine(listingId, { rating, comment });
+        setReviews((current) => current.map((review) => review.id === ownReview.id ? response.data : review));
+        setIsEditingReview(false);
+        setNotice('Your review has been updated.');
+      } else {
+        const response = await reviewApi.create(listingId, { rating, comment });
+        setReviews((current) => [response.data, ...current]);
+        setComment('');
+        setNotice('Your review has been submitted.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to submit your review.');
     } finally {
@@ -134,12 +168,12 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
   if (!listing) return null;
 
   const average = reviews.length ? reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length : 0;
-  const hasReviewed = user ? reviews.some((review) => review.user.id === user.id) : false;
+  const ownReview = user ? reviews.find((review) => review.user.id === user.id) : undefined;
+  const hasReviewed = Boolean(ownReview);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {error ? <p role="alert" className="mb-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
-      {notice ? <p role="status" className="mb-4 border-l-4 border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p> : null}
       <button
         type="button"
         onClick={goBack}
@@ -160,19 +194,27 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent-sage)]">{listing.campus.name}</p>
           <h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">{listing.title}</h1>
-          <p className="mt-3 text-sm text-[var(--text-muted)]">{listing.address} · {listing.distanceFromCampus.toFixed(1)} km from campus</p>
+          <p className="mt-3 flex items-start gap-1.5 text-sm text-blue-700">
+            <MapPin size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-blue-700" />
+            <span>{listing.address}</span>
+          </p>
+          <p className="mt-1 pl-[1.375rem] text-sm text-blue-700">{listing.distanceFromCampus.toFixed(1)} km from campus</p>
           <p className="mt-5 text-2xl font-semibold text-[var(--accent-terracotta)]">R{listing.pricePerMonth.toLocaleString()} <span className="text-sm font-normal text-[var(--text-muted)]">per month</span></p>
           <p className="mt-4 text-sm leading-6 text-[var(--charcoal-mid)]">{listing.description}</p>
           <div className="mt-5 flex flex-wrap gap-2 text-sm">
-            <span className="border border-[var(--beige)] px-3 py-1.5">{listing.availableRooms} rooms available</span>
-            <span className="border border-[var(--beige)] px-3 py-1.5">{listing.accommodationType.replaceAll('_', ' ')}</span>
-            <span className="border border-[var(--beige)] px-3 py-1.5">{average ? `${average.toFixed(1)} / 5` : 'No rating'} ({reviews.length})</span>
+            <span className="border border-[var(--accent-terracotta)] bg-[var(--accent-terracotta)] px-3 py-1.5 text-white">{listing.availableRooms} rooms available</span>
+            <span className="border border-[var(--accent-terracotta)] bg-[var(--accent-terracotta)] px-3 py-1.5 text-white">{listing.accommodationType.replaceAll('_', ' ')}</span>
+            <span className="inline-flex items-center gap-1 border border-[var(--accent-terracotta)] bg-[var(--accent-terracotta)] px-3 py-1.5 text-white" aria-label={average ? `${average.toFixed(1)} out of 5 from ${reviews.length} reviews` : 'No reviews'}>
+              {average ? [1, 2, 3, 4, 5].map((value) => (
+                <Star key={value} size={15} aria-hidden="true" className={value <= Math.round(average) ? 'fill-yellow-300 text-yellow-300' : 'text-white/70'} />
+              )) : <span>No rating</span>}
+            </span>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">{listing.amenities.map((amenity) => {
-            const icon = amenityIcons[amenity.trim().toLowerCase()];
+            const icon = getAmenityIcon(amenity);
             return (
               <span key={amenity} className="inline-flex items-center gap-1.5 bg-[var(--cream)] px-3 py-1.5 text-sm">
-                {icon ? <icon.Icon size={16} aria-hidden="true" className={icon.color} /> : null}
+                <icon.Icon size={16} aria-hidden="true" className={icon.color} />
                 {amenity}
               </span>
             );
@@ -180,7 +222,20 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
           {listing.provider || listing.owner ? <p className="mt-6 border-t border-[var(--beige)] pt-4 text-sm">Provided by <strong>{listing.provider?.name ?? listing.owner?.name}</strong>{(listing.provider?.isVerified ?? listing.owner?.isVerified) ? ' · Verified landlord' : ''}</p> : null}
           {isAuthenticated && user?.role === 'STUDENT' ? (
             <div className="mt-6 flex flex-wrap gap-3">
-              <button disabled={busy} onClick={() => void toggleFavourite()} className="inline-flex items-center gap-2 border border-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50"><Bookmark size={16} aria-hidden="true" />{isFavourite ? 'Saved' : 'Save home'}</button>
+              <button
+                type="button"
+                aria-pressed={isFavourite}
+                disabled={busy}
+                onClick={() => void toggleFavourite()}
+                className={`inline-flex items-center gap-2 border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${
+                  isFavourite
+                    ? 'border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800'
+                    : 'border-[var(--charcoal)] text-[var(--charcoal)]'
+                }`}
+              >
+                <Bookmark size={16} aria-hidden="true" />
+                {isFavourite ? 'Saved' : 'Save home'}
+              </button>
               <button disabled={busy} onClick={() => void startEnquiry()} className="inline-flex items-center gap-2 bg-[var(--charcoal)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><MessageCircle size={16} aria-hidden="true" />Contact landlord</button>
             </div>
           ) : null}
@@ -190,7 +245,8 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
       <section className="mt-12 grid gap-10 border-t border-[var(--beige)] pt-8 lg:grid-cols-2">
         <div>
           <h2 className="font-serif text-2xl text-[var(--charcoal)]">Student reviews</h2>
-          {isAuthenticated && user?.role === 'STUDENT' && !hasReviewed ? (
+          {notice ? <p role="status" className="mt-3 border-l-4 border-emerald-700 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p> : null}
+          {isAuthenticated && user?.role === 'STUDENT' && (!hasReviewed || isEditingReview) ? (
             <form onSubmit={submitReview} className="mt-4 grid gap-3 border-b border-[var(--beige)] pb-5">
               <fieldset>
                 <legend className="text-sm font-medium">Your rating</legend>
@@ -217,16 +273,20 @@ export default function ListingDetail({ listingId }: { listingId: string }) {
                 </div>
               </fieldset>
               <label className="grid gap-1 text-sm font-medium">Review (optional)<textarea minLength={3} maxLength={1200} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a few words about your experience (optional)" className="min-h-24 border border-[var(--beige)] p-3" /></label>
-              <button disabled={busy} className="w-fit bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Submit review</button>
+              <div className="flex flex-wrap gap-2">
+                <button disabled={busy} className="w-fit bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{isEditingReview ? 'Save changes' : 'Submit review'}</button>
+                {isEditingReview ? <button type="button" disabled={busy} onClick={() => setIsEditingReview(false)} className="w-fit border border-[var(--beige)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button> : null}
+              </div>
             </form>
           ) : null}
-          {isAuthenticated && user?.role === 'STUDENT' && hasReviewed ? (
-            <p role="status" className="mt-4 border-l-4 border-[var(--accent-sage)] bg-[var(--cream)] px-4 py-3 text-sm text-[var(--charcoal)]">
-              You have already reviewed this listing. Your review is shown below.
-            </p>
+          {isAuthenticated && user?.role === 'STUDENT' && hasReviewed && !isEditingReview ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-[var(--accent-sage)] bg-[var(--cream)] px-4 py-3">
+              <p role="status" className="text-sm text-[var(--charcoal)]">You have already reviewed this listing</p>
+              <button type="button" onClick={() => { setRating(ownReview?.rating ?? 5); setComment(ownReview?.comment ?? ''); setIsEditingReview(true); }} className="text-sm font-semibold text-[var(--brown-dark)] underline underline-offset-2">Edit</button>
+            </div>
           ) : null}
           <div className="divide-y divide-[var(--beige)]">
-            {reviews.length ? reviews.map((review) => <article key={review.id} className="py-4"><p className="text-sm font-semibold">{review.user.name} <span className="ml-2 text-[var(--accent-terracotta)]">{'★'.repeat(review.rating)}</span></p>{review.comment ? <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">{review.comment}</p> : null}</article>) : <p className="py-4 text-sm text-[var(--text-muted)]">No reviews yet.</p>}
+            {reviews.length ? reviews.map((review) => <article key={review.id} className="py-4"><p className="flex items-center gap-2 text-sm font-semibold">{review.user.name}<span className="inline-flex items-center gap-0.5" aria-label={`${review.rating} out of 5 stars`}>{[1, 2, 3, 4, 5].map((value) => <Star key={value} size={14} aria-hidden="true" className={value <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-[var(--text-muted)]'} />)}</span></p>{review.comment ? <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">{review.comment}</p> : null}</article>) : <p className="py-4 text-sm text-[var(--text-muted)]">No reviews yet.</p>}
           </div>
         </div>
         {isAuthenticated && user?.role === 'STUDENT' ? (

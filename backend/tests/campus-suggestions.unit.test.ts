@@ -12,7 +12,7 @@ jest.mock('../src/utils/geocode', () => {
   const actual = jest.requireActual('../src/utils/geocode');
   return {
     ...actual,
-    resolveAddressCoordinates: jest.fn(),
+    resolveAddressCoordinatesWithInfo: jest.fn(),
     searchCampusAddressSuggestions: jest.fn(),
     searchInstitutionCampuses: jest.fn(),
   };
@@ -26,7 +26,7 @@ import {
 } from '../src/controllers/campus.controller';
 import {
   LocationServiceError,
-  resolveAddressCoordinates,
+  resolveAddressCoordinatesWithInfo,
   searchCampusAddressSuggestions,
   searchInstitutionCampuses,
 } from '../src/utils/geocode';
@@ -39,7 +39,7 @@ function responseMock() {
 describe('Admin campus suggestions', () => {
   const findInstitution = prisma.institution.findUnique as jest.Mock;
   const searchCampuses = searchInstitutionCampuses as jest.MockedFunction<typeof searchInstitutionCampuses>;
-  const resolveCampusAddress = resolveAddressCoordinates as jest.MockedFunction<typeof resolveAddressCoordinates>;
+  const resolveCampusAddress = resolveAddressCoordinatesWithInfo as jest.MockedFunction<typeof resolveAddressCoordinatesWithInfo>;
   const searchAddressSuggestions = searchCampusAddressSuggestions as jest.MockedFunction<typeof searchCampusAddressSuggestions>;
 
   afterEach(() => {
@@ -109,7 +109,10 @@ describe('Admin campus suggestions', () => {
       name: 'Example University',
       isActive: true,
     });
-    resolveCampusAddress.mockResolvedValue({ latitude: -25.7479, longitude: 28.2293 });
+    resolveCampusAddress.mockResolvedValue({
+      coordinates: { latitude: -25.7479, longitude: 28.2293 },
+      usedFallback: false,
+    });
     (prisma.campus.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.campus.create as jest.Mock).mockResolvedValue({ id: 'campus-id', name: 'Example Campus' });
     const response = responseMock();
@@ -123,12 +126,49 @@ describe('Admin campus suggestions', () => {
       },
     } as unknown as Request, response);
 
+    expect(findInstitution).toHaveBeenCalledWith({
+      where: { id: 'd76ead4a-ca92-4c05-8114-7d365ad957a9' },
+      select: { id: true, name: true },
+    });
     expect(resolveCampusAddress).toHaveBeenCalledWith('University Road, Pretoria, Gauteng', {
       locality: 'Pretoria, Gauteng',
       fallbackQuery: 'Example Campus',
+      fallbackQueries: ['Example University'],
       label: 'campus',
     });
     expect(response.status).toHaveBeenCalledWith(201);
+  });
+
+  it('warns when a campus is created using the institution fallback location', async () => {
+    findInstitution.mockResolvedValue({
+      id: 'd76ead4a-ca92-4c05-8114-7d365ad957a9',
+      name: 'University of Fort Hare',
+      isActive: true,
+    });
+    resolveCampusAddress.mockResolvedValue({
+      coordinates: { latitude: -32.7848724, longitude: 26.8501634 },
+      usedFallback: true,
+    });
+    (prisma.campus.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.campus.create as jest.Mock).mockResolvedValue({
+      id: 'campus-id',
+      name: 'Alice Campus',
+    });
+    const response = responseMock();
+
+    await createCampus({
+      body: {
+        institutionId: 'd76ead4a-ca92-4c05-8114-7d365ad957a9',
+        name: 'Alice Campus',
+        location: 'Alice',
+        address: 'Ring Road, Dikeni, 5700',
+      },
+    } as unknown as Request, response);
+
+    expect((response.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+      success: true,
+      message: expect.stringContaining('using the mapped location for University of Fort Hare'),
+    });
   });
 
   it('returns validated address suggestions using the entered campus context', async () => {

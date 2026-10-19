@@ -11,12 +11,14 @@ import {
   ListingReport,
   Message,
   Pagination,
+  PublicCampusStats,
   Review,
   StudentReport,
   User,
 } from '../types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE = '/api-proxy';
+export const AUTH_SESSION_INVALIDATED_EVENT = 'saf:auth-session-invalidated';
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -51,6 +53,12 @@ export async function apiFetch<T>(
       : null;
 
     if (!res.ok) {
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const isLoginOrRegistration = /^\/auth\/(?:login|register)(?:\?|$)/.test(normalizedEndpoint);
+      if (res.status === 401 && token && !isLoginOrRegistration && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(AUTH_SESSION_INVALIDATED_EVENT));
+      }
+
       throw new Error(
         data?.message ||
           `The API returned a non-JSON response (HTTP ${res.status}). Make sure the backend API is running on ${API_BASE}.`
@@ -144,6 +152,7 @@ export const authApi = {
 // Campuses API
 export const campusApi = {
   getInstitutions: () => apiFetch<Institution[]>('/campuses/institutions'),
+  getPublicStats: () => apiFetch<PublicCampusStats>('/campuses/stats'),
   getAdminInstitutions: () => apiFetch<Institution[]>('/campuses/institutions/manage'),
   getInstitutionSuggestions: (search = '') => {
     const query = new URLSearchParams({ search });
@@ -260,12 +269,15 @@ export const reviewApi = {
   list: (listingId: string) => apiFetch<Review[]>(`/listings/${listingId}/reviews`),
   create: (listingId: string, data: { rating: number; comment: string }) =>
     apiFetch<Review>(`/listings/${listingId}/reviews`, { method: 'POST', body: JSON.stringify(data) }),
+  updateMine: (listingId: string, data: { rating: number; comment: string }) =>
+    apiFetch<Review>(`/listings/${listingId}/reviews/me`, { method: 'PATCH', body: JSON.stringify(data) }),
 };
 
 export const reportApi = {
   create: (listingId: string, data: { reason: string; description: string }) =>
     apiFetch<ListingReport>(`/listings/${listingId}/reports`, { method: 'POST', body: JSON.stringify(data) }),
   mine: () => apiFetch<StudentReport[]>('/reports/mine'),
+  mineById: (reportId: string) => apiFetch<StudentReport>(`/reports/mine/${encodeURIComponent(reportId)}`),
 };
 
 export const conversationApi = {

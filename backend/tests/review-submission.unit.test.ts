@@ -4,16 +4,17 @@ jest.mock('../src/config/prisma', () => ({
   __esModule: true,
   default: {
     listing: { findUnique: jest.fn() },
-    review: { findFirst: jest.fn(), create: jest.fn() },
+    review: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   },
 }));
 
 import prisma from '../src/config/prisma';
-import { createReview } from '../src/controllers/review.controller';
+import { createReview, updateMyReview } from '../src/controllers/review.controller';
 
 const mockedListingFindUnique = prisma.listing.findUnique as jest.Mock;
 const mockedReviewFindFirst = prisma.review.findFirst as jest.Mock;
 const mockedReviewCreate = prisma.review.create as jest.Mock;
+const mockedReviewUpdate = prisma.review.update as jest.Mock;
 
 function responseMock() {
   const response = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
@@ -34,6 +35,12 @@ describe('student review submission', () => {
     mockedListingFindUnique.mockResolvedValue({ id: 'listing-id', approvalStatus: 'APPROVED' });
     mockedReviewFindFirst.mockResolvedValue(null);
     mockedReviewCreate.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: 'review-id',
+      createdAt: new Date('2026-10-09T09:00:00Z'),
+      user: { id: 'student-id', name: 'Student' },
+    }));
+    mockedReviewUpdate.mockImplementation(async ({ data }) => ({
       ...data,
       id: 'review-id',
       createdAt: new Date('2026-10-09T09:00:00Z'),
@@ -75,5 +82,36 @@ describe('student review submission', () => {
     expect(response.status).toHaveBeenCalledWith(400);
     expect((response.json as jest.Mock).mock.calls[0][0].message).toBe('Review comment must be at least 3 characters');
     expect(mockedReviewCreate).not.toHaveBeenCalled();
+  });
+
+  it('updates only the authenticated student’s existing review', async () => {
+    mockedReviewFindFirst.mockResolvedValue({ id: 'review-id', userId: 'student-id', listingId: 'listing-id' });
+    const response = responseMock();
+
+    await updateMyReview(requestMock({ rating: 4, comment: 'Updated review' }), response);
+
+    expect(mockedReviewFindFirst).toHaveBeenCalledWith({
+      where: { userId: 'student-id', listingId: 'listing-id' },
+    });
+    expect(mockedReviewUpdate).toHaveBeenCalledWith({
+      where: { id: 'review-id' },
+      data: { rating: 4, comment: 'Updated review' },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect((response.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+      success: true,
+      data: { id: 'review-id', rating: 4, comment: 'Updated review', user: { id: 'student-id' } },
+    });
+  });
+
+  it('does not create or update a review when the student has no existing review', async () => {
+    mockedReviewFindFirst.mockResolvedValue(null);
+    const response = responseMock();
+
+    await updateMyReview(requestMock({ rating: 4, comment: 'Updated review' }), response);
+
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(mockedReviewUpdate).not.toHaveBeenCalled();
   });
 });

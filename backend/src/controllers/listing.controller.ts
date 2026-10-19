@@ -146,7 +146,29 @@ export async function createListing(req: Request, res: Response): Promise<void> 
       },
     });
 
-    sendSuccess(res, listing, 'Listing submitted successfully and awaiting admin approval', 201);
+    let message = 'Listing submitted successfully and awaiting admin approval';
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN', isActive: true },
+        select: { id: true },
+      });
+      if (admins.length > 0) {
+        await prisma.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.id,
+            listingId: listing.id,
+            type: 'PENDING_LISTING',
+            title: 'Listing awaiting review',
+            message: `"${listing.title}" has been submitted and is awaiting admin approval.`,
+          })),
+        });
+      }
+    } catch (notificationError) {
+      console.error('createListing admin notification error:', notificationError);
+      message = 'Listing submitted successfully, but administrators could not be notified.';
+    }
+
+    sendSuccess(res, listing, message, 201);
   } catch (error) {
     await Promise.allSettled(storedPhotos.map((photo) => deleteStoredFile(photo.filename)));
     console.error('createListing error:', error);

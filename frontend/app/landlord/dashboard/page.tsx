@@ -32,7 +32,7 @@ export default function LandlordDashboardPage() {
   return (
     <AuthGuard allowedRoles={['LANDLORD']}>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-[30px] border border-[var(--beige)] bg-[radial-gradient(circle_at_top_right,_rgba(191,125,90,0.14),_transparent_38%),linear-gradient(135deg,#fdfaf7,#f3e8dd)] p-6 shadow-[0_24px_60px_rgba(92,74,56,0.08)] sm:p-8 lg:p-10">
+        <section className="overflow-hidden rounded-[30px] border border-[var(--beige)] bg-[radial-gradient(circle_at_top_right,_rgba(191,125,90,0.14),_transparent_38%),linear-gradient(135deg,var(--warm-white),var(--cream))] p-6 shadow-[0_24px_60px_rgba(92,74,56,0.08)] sm:p-8 lg:p-10">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-terracotta)]">Property workspace</p>
@@ -40,7 +40,7 @@ export default function LandlordDashboardPage() {
               <p className="mt-4 max-w-xl text-base text-[var(--text-muted)]">Keep your accommodation details current, track approval progress, and make every room easier for students to find.</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Link href="/listings" className="inline-flex items-center justify-center rounded-2xl border border-[var(--beige)] bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--charcoal)] hover:bg-white">View Market</Link>
+              <Link href="/listings" className="inline-flex items-center justify-center rounded-2xl border border-[var(--beige)] bg-[var(--warm-white)] px-4 py-3 text-sm font-semibold text-[var(--charcoal)] hover:bg-[var(--cream)]">View Market</Link>
               <Link href="/landlord/listings/create" className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white ${user?.isVerified ? 'bg-[var(--charcoal)] hover:bg-[var(--charcoal-mid)]' : 'cursor-not-allowed bg-[var(--charcoal)]/50'}`} aria-disabled={!user?.isVerified}>Add a property</Link>
             </div>
           </div>

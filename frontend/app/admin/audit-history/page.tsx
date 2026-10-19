@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { jsPDF } from 'jspdf';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { AuthGuard } from '../../../components/auth-guard';
 import { adminApi } from '../../../lib/api';
 import type { User } from '../../../types';
@@ -16,6 +17,7 @@ export default function AdminAuditHistoryPage() {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -102,12 +104,42 @@ export default function AdminAuditHistoryPage() {
     <AuthGuard allowedRoles={['ADMIN']}>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--beige)] pb-5"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-sage)]">Accountability</p><h1 className="mt-2 font-serif text-4xl text-[var(--charcoal)]">Audit history</h1></div><button type="button" onClick={downloadPdf} disabled={loading || Boolean(error) || entries.length === 0} className="bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Download PDF</button></header>
-        <form onSubmit={applyFilters} className="grid gap-3 border-b border-[var(--beige)] py-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:items-end">
-          <label className="grid gap-1 text-xs font-semibold">From<input type="date" value={form.from} onChange={(event) => setForm((current) => ({ ...current, from: event.target.value }))} className="border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" /></label>
-          <label className="grid gap-1 text-xs font-semibold">To<input type="date" value={form.to} onChange={(event) => setForm((current) => ({ ...current, to: event.target.value }))} className="border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" /></label>
-          <label className="grid gap-1 text-xs font-semibold">Action category<select value={form.targetType} onChange={(event) => setForm((current) => ({ ...current, targetType: event.target.value }))} className="border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal"><option value="">All categories</option>{['USER', 'REPORT', 'LISTING', 'CAMPUS', 'INSTITUTION', 'SYSTEM'].map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-          <button className="bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white">Apply filters</button><button type="button" onClick={resetFilters} className="border border-[var(--beige)] px-4 py-2 text-sm font-semibold">Reset</button>
-        </form>
+        <section className="my-5 overflow-hidden rounded-2xl border border-[var(--beige)] bg-[var(--warm-white)]">
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            aria-controls="audit-filter-controls"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="flex min-h-12 w-full items-center justify-between px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-2 font-semibold text-[var(--charcoal)]">
+              <SlidersHorizontal size={17} aria-hidden="true" className="text-[var(--accent-terracotta)]" />
+              Adjust filters
+            </span>
+            <ChevronDown size={20} aria-hidden="true" className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {filtersOpen ? (
+            <form id="audit-filter-controls" onSubmit={applyFilters} className="flex flex-col gap-3 border-t border-[var(--beige)] p-4">
+              <label className="grid min-w-0 gap-1 text-xs font-semibold">
+                From
+                <input type="date" value={form.from} onChange={(event) => setForm((current) => ({ ...current, from: event.target.value }))} className="min-h-10 w-full border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold">
+                To
+                <input type="date" value={form.to} onChange={(event) => setForm((current) => ({ ...current, to: event.target.value }))} className="min-h-10 w-full border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal" />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs font-semibold">
+                Action category
+                <select value={form.targetType} onChange={(event) => setForm((current) => ({ ...current, targetType: event.target.value }))} className="min-h-10 w-full border border-[var(--beige)] bg-white px-3 py-2 text-sm font-normal">
+                  <option value="">All categories</option>
+                  {['USER', 'REPORT', 'LISTING', 'CAMPUS', 'INSTITUTION', 'SYSTEM'].map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </label>
+              <button className="min-h-10 w-full bg-[var(--charcoal)] px-4 py-2 text-sm font-semibold text-white">Apply filters</button>
+              <button type="button" onClick={resetFilters} className="min-h-10 w-full border border-[var(--beige)] bg-white px-4 py-2 text-sm font-semibold text-[var(--charcoal)]">Reset</button>
+            </form>
+          ) : null}
+        </section>
         {error ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {loading ? <p role="status" className="py-8 text-sm text-[var(--text-muted)]">Loading audit history...</p> : entries.length === 0 ? <p className="py-8 text-sm text-[var(--text-muted)]">No audit entries match these filters.</p> : <div className="divide-y divide-[var(--beige)]">{entries.map((entry) => <article key={entry.id} className="grid gap-2 py-4 sm:grid-cols-[180px_1fr_160px]"><time className="text-xs text-[var(--text-muted)]">{new Date(entry.createdAt).toLocaleString()}</time><div><p className="text-sm font-semibold">{entry.action.replaceAll('_', ' ')} · {entry.targetType}</p><p className="text-sm text-[var(--text-muted)]">{entry.description}</p></div><p className="text-xs text-[var(--text-muted)]">By {entry.admin.name}</p></article>)}</div>}
       </main>

@@ -1,6 +1,7 @@
 import {
   calculateRouteDistanceKm,
   resolveAddressCoordinates,
+  resolveAddressCoordinatesWithInfo,
   resolveListingLocation,
   resolveListingRoutePreview,
   searchCampusAddressSuggestions,
@@ -479,6 +480,66 @@ describe('OpenStreetMap address and route services', () => {
     expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('q')).toBe('University campus');
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('q')).toBe('University campus, Kimberley, Northern Cape, South Africa');
     expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get('q')).toBe('Sol Plaatje University, Kimberley, Northern Cape, South Africa');
+  });
+
+  it('uses the selected institution as the final fallback for an unmapped campus address', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-32.7848724',
+          lon: '26.8501634',
+          display_name: 'University of Fort Hare, Thompson Street, Alice, Amathole District Municipality, Eastern Cape, South Africa',
+        }],
+      } as Response);
+
+    await expect(resolveAddressCoordinatesWithInfo('Ring Road, Dikeni, 5700', {
+      locality: 'Alice',
+      fallbackQuery: 'Alice Campus',
+      fallbackQueries: ['University of Fort Hare'],
+      label: 'campus',
+    })).resolves.toEqual({
+      coordinates: { latitude: -32.7848724, longitude: 26.8501634 },
+      usedFallback: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('q'))
+      .toBe('Ring Road, Dikeni, 5700');
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('q'))
+      .toBe('Ring Road, Dikeni, 5700, Alice, South Africa');
+    expect(new URL(String(fetchMock.mock.calls[2][0])).searchParams.get('q'))
+      .toBe('Alice Campus, Alice, South Africa');
+    expect(new URL(String(fetchMock.mock.calls[3][0])).searchParams.get('q'))
+      .toBe('University of Fort Hare, Alice, South Africa');
+  });
+
+  it('rejects an institution fallback geocoded outside the selected campus locality', async () => {
+    const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => [] } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{
+          lat: '-26.2',
+          lon: '28.0',
+          display_name: 'University of Fort Hare, Johannesburg, Gauteng, South Africa',
+        }],
+      } as Response);
+
+    await expect(resolveAddressCoordinates('Ring Road, Dikeni, 5700', {
+      locality: 'Alice',
+      fallbackQuery: 'Alice Campus',
+      fallbackQueries: ['University of Fort Hare'],
+      label: 'campus',
+    })).rejects.toThrow(/could not find this campus/i);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('accepts a campus result matching the region when the city is named differently', async () => {

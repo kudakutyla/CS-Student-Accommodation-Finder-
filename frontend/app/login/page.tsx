@@ -40,12 +40,12 @@ function LoginForm() {
   return (
     <div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl items-center justify-center px-4 py-12">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-[28px] border border-[var(--beige)] bg-[var(--warm-white)] shadow-[0_20px_50px_rgba(92,74,56,0.08)] lg:grid-cols-2">
-        <div className="hidden bg-[radial-gradient(circle_at_top,_rgba(122,145,117,0.15),_transparent_50%),linear-gradient(135deg,#f7efe9,#f2e7df)] p-10 lg:flex lg:flex-col lg:justify-between">
+        <div className="hidden bg-[radial-gradient(circle_at_top,_rgba(122,145,117,0.15),_transparent_50%),linear-gradient(135deg,var(--warm-white),var(--cream))] p-10 lg:flex lg:flex-col lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Welcome back</p>
             <h1 className="mt-6 font-serif text-4xl text-[var(--charcoal)]">Find your next home with confidence.</h1>
           </div>
-          <div className="rounded-3xl border border-white/60 bg-white/50 p-5 text-sm text-[var(--text-muted)] backdrop-blur-sm">
+          <div className="rounded-3xl border border-[var(--beige)] bg-[var(--warm-white)] p-5 text-sm text-[var(--text-muted)] backdrop-blur-sm">
             <p className="font-semibold text-[var(--charcoal)]">Trusted by students across campus communities.</p>
             <p className="mt-2">Browse verified listings, compare prices, and connect with trusted landlords.</p>
           </div>
@@ -57,7 +57,7 @@ function LoginForm() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-sage)]">Account access</p>
               <h2 className="mt-2 font-serif text-3xl text-[var(--charcoal)]">Log in</h2>
             </div>
-            <Link href="/" className="text-sm font-medium text-[var(--brown-dark)] underline-offset-4 hover:underline">Back home</Link>
+            <Link href="/" className="text-sm font-medium text-[var(--brown-dark)] underline underline-offset-4 hover:underline">Back home</Link>
           </div>
 
           {passwordReset ? <p role="status" className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Your password has been reset. Log in with your new password.</p> : null}
@@ -73,7 +73,7 @@ function LoginForm() {
                 <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="min-w-0 flex-1 rounded-l-2xl bg-transparent px-4 py-3 outline-none" placeholder="Enter your password" required />
                 <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)} className="px-4 text-[var(--text-muted)] hover:text-[var(--charcoal)]"><span className="sr-only">{showPassword ? 'Hide password' : 'Show password'}</span>{showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}</button>
               </div>
-              <div className="mt-2 text-right"><Link href="/forgot-password" className="text-sm font-semibold text-[var(--brown-dark)] underline-offset-4 hover:underline">Forgot password?</Link></div>
+              <div className="mt-2 text-right"><Link href="/forgot-password" className="text-sm font-semibold text-[var(--brown-dark)] underline underline-offset-4 hover:underline">Forgot password?</Link></div>
             </div>
 
             {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
@@ -85,7 +85,7 @@ function LoginForm() {
 
           <div className="mt-6 rounded-2xl border border-[var(--beige)] bg-[var(--cream)] p-4 text-sm text-[var(--text-muted)]">
             Need an account?{' '}
-            <Link href="/register" className="font-semibold text-[var(--brown-dark)] underline-offset-4 hover:underline">Create one</Link>
+            <Link href="/register" className="font-semibold text-[var(--brown-dark)] underline underline-offset-4 hover:underline">Create one</Link>
           </div>
         </div>
       </div>

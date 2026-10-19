@@ -1,8 +1,10 @@
 export type Coordinates = { latitude: number; longitude: number };
+export type AddressResolution = { coordinates: Coordinates; usedFallback: boolean };
 
 type AddressSearchContext = {
   locality: string;
   fallbackQuery?: string;
+  fallbackQueries?: string[];
   label?: 'campus' | 'property';
 };
 
@@ -342,23 +344,41 @@ export async function searchCampusAddressSuggestions(
   return [];
 }
 
-export async function resolveAddressCoordinates(
+export async function resolveAddressCoordinatesWithInfo(
   address: string,
   context?: AddressSearchContext
-): Promise<Coordinates> {
+): Promise<AddressResolution> {
   const cleanAddress = address.trim();
   if (!cleanAddress) throw new LocationServiceError('A complete address is required.', 422);
 
-  const queries = [cleanAddress];
+  const queries: Array<{ query: string; usedFallback: boolean }> = [
+    { query: cleanAddress, usedFallback: false },
+  ];
   if (context?.locality.trim()) {
-    queries.push(`${cleanAddress}, ${context.locality.trim()}, South Africa`);
+    queries.push({
+      query: `${cleanAddress}, ${context.locality.trim()}, South Africa`,
+      usedFallback: false,
+    });
     if (context.fallbackQuery?.trim()) {
-      queries.push(`${context.fallbackQuery.trim()}, ${context.locality.trim()}, South Africa`);
+      queries.push({
+        query: `${context.fallbackQuery.trim()}, ${context.locality.trim()}, South Africa`,
+        usedFallback: true,
+      });
+    }
+    for (const fallbackQuery of context.fallbackQueries ?? []) {
+      if (fallbackQuery.trim()) {
+        queries.push({
+          query: `${fallbackQuery.trim()}, ${context.locality.trim()}, South Africa`,
+          usedFallback: true,
+        });
+      }
     }
   }
 
-  const uniqueQueries = [...new Set(queries.map((query) => query.trim()))];
-  for (const query of uniqueQueries) {
+  const uniqueQueries = [...new Map(
+    queries.map(({ query, usedFallback }) => [query.trim(), { query: query.trim(), usedFallback }])
+  ).values()];
+  for (const { query, usedFallback } of uniqueQueries) {
     const results = await searchAddress(query);
     for (const result of results) {
       if (context?.locality.trim()) {
@@ -374,7 +394,7 @@ export async function resolveAddressCoordinates(
       const rawLongitude = result.lon;
       const latitude = typeof rawLatitude === 'string' ? Number(rawLatitude) : Number.NaN;
       const longitude = typeof rawLongitude === 'string' ? Number(rawLongitude) : Number.NaN;
-      return { latitude, longitude };
+      return { coordinates: { latitude, longitude }, usedFallback };
     }
   }
 
@@ -386,6 +406,14 @@ export async function resolveAddressCoordinates(
         : 'The address could not be resolved. Enter a complete South African street address and try again.',
     422
   );
+}
+
+export async function resolveAddressCoordinates(
+  address: string,
+  context?: AddressSearchContext
+): Promise<Coordinates> {
+  const result = await resolveAddressCoordinatesWithInfo(address, context);
+  return result.coordinates;
 }
 
 export async function calculateRouteDistanceBetweenCoordinates(

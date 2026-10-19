@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 jest.mock('../src/config/prisma', () => ({
   __esModule: true,
   default: {
-    report: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    report: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     auditLog: { create: jest.fn() },
     notification: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -11,7 +11,7 @@ jest.mock('../src/config/prisma', () => ({
 }));
 
 import prisma from '../src/config/prisma';
-import { getAdminReports, updateReportStatus } from '../src/controllers/report.controller';
+import { getAdminReports, getMyReportById, updateReportStatus } from '../src/controllers/report.controller';
 
 const findMany = prisma.report.findMany as jest.MockedFunction<typeof prisma.report.findMany>;
 
@@ -48,7 +48,9 @@ describe('admin report retrieval', () => {
         reason: true,
         description: true,
         status: true,
+        adminReviewNote: true,
         createdAt: true,
+        updatedAt: true,
         listing: { select: { id: true, title: true, approvalStatus: true } },
         user: { select: { id: true, name: true, email: true } },
       },
@@ -73,7 +75,7 @@ describe('admin report retrieval', () => {
     expect(error).toHaveBeenCalledWith('getAdminReports error:', expect.any(Error));
   });
 
-  it('updates status without writing the optional review-note column', async () => {
+  it('persists the admin review note with the status update', async () => {
     const reportUpdate = jest.fn().mockResolvedValue({ id: 'report-1', status: 'RESOLVED' });
     const auditCreate = jest.fn().mockResolvedValue({});
     const notificationCreate = jest.fn().mockResolvedValue({});
@@ -99,7 +101,7 @@ describe('admin report retrieval', () => {
 
     expect(reportUpdate).toHaveBeenCalledWith({
       where: { id: 'report-1' },
-      data: { status: 'RESOLVED' },
+      data: { status: 'RESOLVED', adminReviewNote: 'We checked the concern.' },
       select: { id: true, status: true, updatedAt: true },
     });
     expect(auditCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -108,6 +110,7 @@ describe('admin report retrieval', () => {
     expect(notificationCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         userId: 'reporter-1',
+        reportId: 'report-1',
         message: expect.stringContaining('We checked the concern.'),
       }),
     }));
@@ -144,12 +147,13 @@ describe('admin report retrieval', () => {
 
     expect(reportUpdate).toHaveBeenCalledWith({
       where: { id: 'report-1' },
-      data: { status },
+      data: { status, adminReviewNote: null },
       select: { id: true, status: true, updatedAt: true },
     });
     expect(notificationCreate).toHaveBeenCalledWith({
       data: {
         userId: 'reporter-1',
+        reportId: 'report-1',
         type: 'REPORT_STATUS',
         title: 'Your report was reviewed',
         message: `Your report about "Campus House" is now ${status.toLowerCase().replace('_', ' ')}.`,
@@ -190,8 +194,8 @@ describe('admin report retrieval', () => {
   });
 
   describe('admin report status notifications', () => {
-    const mockedFindUnique = prisma.report.findUnique as jest.Mock;
-    const mockedTransaction = prisma.$transaction as jest.Mock;
+    const mockedFindUnique = () => prisma.report.findUnique as jest.Mock;
+    const mockedTransaction = () => prisma.$transaction as jest.Mock;
     const report = {
       id: 'report-1',
       userId: 'student-1',
@@ -212,8 +216,8 @@ describe('admin report retrieval', () => {
         auditLog: { create: jest.fn().mockResolvedValue({}) },
         notification: { create: jest.fn().mockResolvedValue({}) },
       };
-      mockedFindUnique.mockResolvedValue(report);
-      mockedTransaction.mockImplementation(async (callback) => callback(transaction));
+      mockedFindUnique().mockResolvedValue(report);
+      mockedTransaction().mockImplementation(async (callback) => callback(transaction));
       const response = responseMock();
 
       await updateReportStatus(
@@ -225,7 +229,7 @@ describe('admin report retrieval', () => {
         response
       );
 
-      expect(mockedFindUnique).toHaveBeenCalledWith({
+      expect(mockedFindUnique()).toHaveBeenCalledWith({
         where: { id: report.id },
         select: {
           id: true,
@@ -236,13 +240,14 @@ describe('admin report retrieval', () => {
       });
       expect(transaction.report.update).toHaveBeenCalledWith({
         where: { id: report.id },
-        data: { status },
+        data: { status, adminReviewNote: 'We reviewed your report.' },
         select: { id: true, status: true, updatedAt: true },
       });
       expect(transaction.auditLog.create).toHaveBeenCalled();
       expect(transaction.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 'student-1',
+          reportId: report.id,
           type: 'REPORT_STATUS',
           title: 'Your report was reviewed',
           message: `Your report about "Student room" is now ${readableStatus}.\n\nAdmin note: We reviewed your report.`,
@@ -253,6 +258,57 @@ describe('admin report retrieval', () => {
         success: true,
         data: savedReport,
       });
+    });
+
+    it('returns only the authenticated student’s report and its admin note', async () => {
+      const report = {
+        id: 'report-1',
+        reason: 'Misleading listing',
+        description: 'The listing details do not match.',
+        status: 'IN_REVIEW',
+        adminReviewNote: 'We are checking the listing details.',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        listing: { id: 'listing-1', title: 'Student room' },
+      };
+      prisma.report.findFirst = jest.fn().mockResolvedValue(report) as typeof prisma.report.findFirst;
+      const response = responseMock();
+
+      await getMyReportById({
+        params: { id: 'report-1' },
+        user: { id: 'student-1', role: 'STUDENT' },
+      } as unknown as Request, response);
+
+      expect(prisma.report.findFirst).toHaveBeenCalledWith({
+        where: { id: 'report-1', userId: 'student-1' },
+        select: {
+          id: true,
+          reason: true,
+          description: true,
+          status: true,
+          adminReviewNote: true,
+          createdAt: true,
+          updatedAt: true,
+          listing: { select: { id: true, title: true } },
+        },
+      });
+      expect((response.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+        success: true,
+        data: { id: 'report-1', adminReviewNote: 'We are checking the listing details.' },
+      });
+    });
+
+    it('does not reveal another student’s report', async () => {
+      prisma.report.findFirst = jest.fn().mockResolvedValue(null) as typeof prisma.report.findFirst;
+      const response = responseMock();
+
+      await getMyReportById({
+        params: { id: 'report-1' },
+        user: { id: 'different-student', role: 'STUDENT' },
+      } as unknown as Request, response);
+
+      expect(response.status).toHaveBeenCalledWith(404);
+      expect((response.json as jest.Mock).mock.calls[0][0]).toMatchObject({ success: false, message: 'Report not found' });
     });
   });
 });

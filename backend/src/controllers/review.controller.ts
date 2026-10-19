@@ -122,3 +122,68 @@ export async function createReview(req: Request, res: Response): Promise<void> {
     sendError(res, 'Failed to create review', 500);
   }
 }
+
+export async function updateMyReview(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      sendError(res, 'Authentication required', 401);
+      return;
+    }
+
+    if (req.user.role !== 'STUDENT') {
+      sendError(res, 'Only students can update reviews.', 403);
+      return;
+    }
+
+    const { id } = req.params;
+    const parsed = reviewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, parsed.error.errors[0].message, 400);
+      return;
+    }
+
+    const listing = await prisma.listing.findUnique({ where: { id } });
+    if (!listing) {
+      sendError(res, 'Listing not found', 404);
+      return;
+    }
+
+    if (listing.approvalStatus !== 'APPROVED') {
+      sendError(res, 'Only approved listings can be reviewed.', 400);
+      return;
+    }
+
+    const existing = await prisma.review.findFirst({
+      where: { userId: req.user.id, listingId: id },
+    });
+    if (!existing) {
+      sendError(res, 'You have not reviewed this listing.', 404);
+      return;
+    }
+
+    const review = await prisma.review.update({
+      where: { id: existing.id },
+      data: parsed.data,
+      include: {
+        user: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    sendSuccess(
+      res,
+      {
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        user: review.user,
+      },
+      'Review updated successfully'
+    );
+  } catch (error) {
+    console.error('updateMyReview error:', error);
+    sendError(res, 'Failed to update your review', 500);
+  }
+}

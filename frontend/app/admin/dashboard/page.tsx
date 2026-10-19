@@ -33,7 +33,7 @@ export default function AdminDashboardPage() {
     { label: 'Pending listings', value: stats.pendingListings, href: '/admin/pending-listings' },
     { label: 'Approved listings', value: stats.approvedListings, href: '/admin/results?type=approved-listings' },
     { label: 'Draft listings', value: stats.draftListings },
-    { label: 'Rejected listings', value: stats.rejectedListings },
+    { label: 'Rejected listings', value: stats.rejectedListings, href: '/admin/listings?status=REJECTED' },
     { label: 'Active campuses', value: stats.totalCampuses, href: '/admin/results?type=campuses' },
   ];
 

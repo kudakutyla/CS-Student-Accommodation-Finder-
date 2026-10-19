@@ -4,6 +4,7 @@ import {
   getAdminCampuses,
   getCampusById,
   getInstitutions,
+  getPublicCampusStats,
   getAdminInstitutions,
   getInstitutionSuggestions,
   getCampusSuggestions,
@@ -24,6 +25,7 @@ router.get('/address-suggestions', authenticate, authorize('ADMIN'), getCampusAd
 router.get('/suggestions', authenticate, authorize('ADMIN'), getCampusSuggestions);
 router.get('/institutions/manage', authenticate, authorize('ADMIN'), getAdminInstitutions);
 router.get('/institutions', getInstitutions);
+router.get('/stats', getPublicCampusStats);
 router.post('/institutions', authenticate, authorize('ADMIN'), createInstitution);
 router.patch('/institutions/:id', authenticate, authorize('ADMIN'), updateInstitution);
 router.get('/manage', authenticate, authorize('ADMIN'), getAdminCampuses);

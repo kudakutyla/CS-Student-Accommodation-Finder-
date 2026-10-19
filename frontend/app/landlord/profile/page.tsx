@@ -13,6 +13,7 @@ export default function LandlordProfilePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [detailsError, setDetailsError] = useState('');
@@ -59,6 +60,7 @@ export default function LandlordProfilePage() {
       });
       updateUser(response.data.user);
       setDetailsSuccess('Profile settings saved.');
+      setIsEditingDetails(false);
     } catch (err) {
       setDetailsError(err instanceof Error ? err.message : 'Unable to save profile settings.');
     } finally {
@@ -96,25 +98,33 @@ export default function LandlordProfilePage() {
             <div className="space-y-6">
               <form onSubmit={handleDetailsSubmit} className="space-y-4">
                 <h2 className="font-serif text-2xl text-[var(--charcoal)]">Profile settings</h2>
-                <label className="block text-sm font-semibold text-[var(--charcoal)]">Name<input name="name" required minLength={2} maxLength={100} defaultValue={user.name} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
-                <label className="block text-sm font-semibold text-[var(--charcoal)]">Email<input name="email" type="email" required maxLength={254} defaultValue={user.email} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
-                <label className="block text-sm font-semibold text-[var(--charcoal)]">Phone<input name="phone" type="tel" maxLength={30} defaultValue={user.phone || ''} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)]" /></label>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Name<input name="name" required minLength={2} maxLength={100} defaultValue={user.name} readOnly={!isEditingDetails} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)] read-only:cursor-default read-only:focus:border-[var(--beige)]" /></label>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Email<input name="email" type="email" required maxLength={254} defaultValue={user.email} readOnly={!isEditingDetails} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)] read-only:cursor-default read-only:focus:border-[var(--beige)]" /></label>
+                <label className="block text-sm font-semibold text-[var(--charcoal)]">Phone<input name="phone" type="tel" maxLength={30} defaultValue={user.phone || ''} readOnly={!isEditingDetails} className="mt-2 w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm font-normal outline-none focus:border-[var(--accent-terracotta)] read-only:cursor-default read-only:focus:border-[var(--beige)]" /></label>
                 {detailsError ? <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{detailsError}</p> : null}
                 {detailsSuccess ? <p role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{detailsSuccess}</p> : null}
-                <button type="submit" disabled={savingDetails} className="rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{savingDetails ? 'Saving...' : 'Save profile settings'}</button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" disabled={savingDetails} onClick={() => { setIsEditingDetails(true); setDetailsError(''); setDetailsSuccess(''); }} className="rounded-2xl border border-[var(--beige)] px-5 py-3 text-sm font-semibold text-[var(--charcoal)] disabled:opacity-60">Edit profile</button>
+                  <button type="submit" disabled={!isEditingDetails || savingDetails} className="rounded-2xl bg-[var(--charcoal)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">{savingDetails ? 'Saving...' : 'Save profile settings'}</button>
+                </div>
               </form>
 
               <form onSubmit={handleSubmit} className="space-y-5 border-t border-[var(--beige)] pt-6">
               <div>
                 <label htmlFor="profilePicture" className="mb-2 block text-sm font-semibold text-[var(--charcoal)]">Profile picture</label>
-                <input
-                  id="profilePicture"
-                  ref={inputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => { const file = event.target.files?.[0] || null; setSelectedPicture(file); setPreview(file ? URL.createObjectURL(file) : ''); }}
-                  className="w-full rounded-2xl border border-[var(--beige)] bg-[var(--cream)] px-4 py-3 text-sm text-[var(--charcoal)] outline-none transition focus:border-[var(--accent-terracotta)]"
-                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={() => inputRef.current?.click()} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[var(--accent-terracotta)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-terracotta)]">Choose file</button>
+                  <span className="text-sm text-[var(--text-muted)]">{selectedPicture?.name || 'No file chosen'}</span>
+                  <input
+                    id="profilePicture"
+                    ref={inputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => { const file = event.target.files?.[0] || null; setSelectedPicture(file); setPreview(file ? URL.createObjectURL(file) : ''); }}
+                    className="sr-only"
+                    tabIndex={-1}
+                  />
+                </div>
                 <p className="mt-2 text-xs text-[var(--text-muted)]">JPEG, PNG, or WebP. Maximum 5 MB.</p>
               </div>
 

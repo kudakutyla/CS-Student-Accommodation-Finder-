@@ -95,7 +95,9 @@ endpoints land and keep this section current with the code (e.g. `GET /api/healt
 exists as the baseline health check). Admin campus lookup suggestions are available at
 `GET /api/campuses/suggestions` with an `institutionId` query parameter. The admin-only
 endpoint looks up mapped South African university/college features associated with the
-selected institution's name or short name using OpenStreetMap Overpass.
+selected institution's name or short name using OpenStreetMap Overpass. Public homepage
+counts are available from `GET /api/campuses/stats`, which returns active campus and
+approved-listing totals without exposing account or moderation data.
 Admins can search South African campus address candidates at
 `GET /api/campuses/address-suggestions` with `address`, `locality`, and optional
 `campusName` query parameters; address lookup is performed server-side using
@@ -106,9 +108,11 @@ returns validated coordinates, OSRM GeoJSON route geometry, and distance without
 creating a listing. MapLibre renders this response only. Listing creation
 recalculates coordinates and route distance server-side before persisting.
 Students can retrieve only their own submitted reports at
-`GET /api/reports/mine`; report-status updates are also delivered through the authenticated
-notifications API. Students submit a required 1–5 rating and an optional comment to
-`POST /api/listings/:id/reviews`.
+`GET /api/reports/mine` and retrieve one of their own reports, including its latest admin
+review note, at `GET /api/reports/mine/:id`; report-status notifications include an optional
+`reportId` so students can open the corresponding report update. Students submit a required
+1–5 rating and an optional comment to `POST /api/listings/:id/reviews`, and can update only
+their own review through `PATCH /api/listings/:id/reviews/me`.
 
 ## 7. Security
 

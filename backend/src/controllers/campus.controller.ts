@@ -13,6 +13,7 @@ import {
   calculateRouteDistanceKm,
   LocationServiceError,
   resolveAddressCoordinates,
+  resolveAddressCoordinatesWithInfo,
   searchCampusAddressSuggestions,
   searchInstitutionCampuses,
 } from '../utils/geocode';
@@ -64,6 +65,27 @@ export async function getInstitutions(req: Request, res: Response): Promise<void
   } catch (error) {
     console.error('getInstitutions error:', error);
     sendError(res, 'Failed to fetch institutions', 500);
+  }
+}
+
+export async function getPublicCampusStats(_req: Request, res: Response): Promise<void> {
+  try {
+    const [campusCount, approvedListingCount] = await Promise.all([
+      prisma.campus.count({
+        where: {
+          isActive: true,
+          institution: { is: { isActive: true } },
+        },
+      }),
+      prisma.listing.count({
+        where: { approvalStatus: 'APPROVED' },
+      }),
+    ]);
+
+    sendSuccess(res, { campusCount, approvedListingCount });
+  } catch (error) {
+    console.error('getPublicCampusStats error:', error);
+    sendError(res, 'Failed to fetch public accommodation statistics', 500);
   }
 }
 
@@ -234,7 +256,36 @@ export async function createInstitution(req: Request, res: Response): Promise<vo
       sendError(res, parsed.error.errors[0].message, 400);
       return;
     }
-    const institution = await prisma.institution.create({ data: parsed.data });
+    const logoColumnAvailable = await institutionLogoColumnAvailable();
+    if (!logoColumnAvailable && parsed.data.logoUrl) {
+      sendError(
+        res,
+        'Institution logo storage is unavailable. Apply the institution logo database migration before adding a logo.',
+        503
+      );
+      return;
+    }
+
+    const institution = logoColumnAvailable
+      ? await prisma.institution.create({ data: parsed.data })
+      : {
+          ...await prisma.institution.create({
+            data: {
+              name: parsed.data.name,
+              shortName: parsed.data.shortName,
+              isActive: parsed.data.isActive,
+            },
+            select: {
+              id: true,
+              name: true,
+              shortName: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+          logoUrl: null,
+        };
     if (req.user) {
       await prisma.auditLog.create({
         data: {
@@ -436,15 +487,19 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
 
     const { name, institutionId, location, address, isActive } = parsed.data;
 
-    const institution = await prisma.institution.findUnique({ where: { id: institutionId } });
+    const institution = await prisma.institution.findUnique({
+      where: { id: institutionId },
+      select: { id: true, name: true },
+    });
     if (!institution) {
       sendError(res, 'Selected institution does not exist', 404);
       return;
     }
 
-    const coordinates = await resolveAddressCoordinates(address, {
+    const addressResolution = await resolveAddressCoordinatesWithInfo(address, {
       locality: location,
       fallbackQuery: name,
+      fallbackQueries: [institution.name],
       label: 'campus',
     });
 
@@ -463,8 +518,8 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
         institutionId,
         location,
         address,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
+        latitude: addressResolution.coordinates.latitude,
+        longitude: addressResolution.coordinates.longitude,
         isActive: isActive ?? true,
       },
     });
@@ -481,7 +536,10 @@ export async function createCampus(req: Request, res: Response): Promise<void> {
       });
     }
 
-    sendSuccess(res, campus, 'Campus created successfully', 201);
+    const message = addressResolution.usedFallback
+      ? `Campus created using the mapped location for ${institution.name} because OpenStreetMap could not match the submitted street address. Verify the saved campus location.`
+      : 'Campus created successfully';
+    sendSuccess(res, campus, message, 201);
   } catch (error) {
     console.error('createCampus error:', error);
     if (error instanceof LocationServiceError) {

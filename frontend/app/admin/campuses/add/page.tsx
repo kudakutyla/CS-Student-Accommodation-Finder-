@@ -76,7 +76,7 @@ function AddCampusPageContent() {
     setError('');
     setNotice('');
     try {
-      await campusApi.createCampus({
+      const response = await campusApi.createCampus({
         institutionId: selectedInstitutionId,
         name: name.trim(),
         location: location.trim(),
@@ -86,7 +86,7 @@ function AddCampusPageContent() {
       setLocation('');
       setAddress('');
       const institutionName = institutions.find((institution) => institution.id === selectedInstitutionId)?.name;
-      setNotice(`Campus created successfully${institutionName ? ` for ${institutionName}` : ''}. You can add another campus to this institution.`);
+      setNotice(response.message || `Campus created successfully${institutionName ? ` for ${institutionName}` : ''}. You can add another campus to this institution.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create campus.');
     } finally {

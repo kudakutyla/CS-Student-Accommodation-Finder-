@@ -117,6 +117,7 @@ export async function approveListing(req: Request, res: Response): Promise<void>
       await tx.notification.create({
         data: {
           userId: listing.ownerId,
+          listingId: listing.id,
           type: 'LISTING_APPROVED',
           title: 'Listing approved',
           message: `"${listing.title}" is now visible to students.`,
@@ -175,6 +176,7 @@ export async function rejectListing(req: Request, res: Response): Promise<void> 
       await tx.notification.create({
         data: {
           userId: listing.ownerId,
+          listingId: listing.id,
           type: 'LISTING_REJECTED',
           title: 'Listing needs changes',
           message: `"${listing.title}" was not approved: ${parsed.data.reason}`,

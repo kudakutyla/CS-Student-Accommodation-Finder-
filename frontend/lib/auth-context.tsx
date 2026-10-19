@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '../types';
-import { authApi } from './api';
+import { AUTH_SESSION_INVALIDATED_EVENT, authApi } from './api';
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +32,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    function clearSession() {
+      localStorage.removeItem('saf_token');
+      localStorage.removeItem('saf_user');
+      setToken(null);
+      setUser(null);
+    }
+
+    window.addEventListener(AUTH_SESSION_INVALIDATED_EVENT, clearSession);
+
     async function loadUser() {
       if (typeof window === 'undefined') return;
       const storedToken = localStorage.getItem('saf_token');
@@ -58,7 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
 
-    loadUser();
+    void loadUser();
+    return () => window.removeEventListener(AUTH_SESSION_INVALIDATED_EVENT, clearSession);
   }, []);
 
   const login = async (credentials: { email: string; password: string }): Promise<User> => {

@@ -65,6 +65,7 @@ export async function createReport(req: Request, res: Response): Promise<void> {
         await prisma.notification.createMany({
           data: admins.map((admin) => ({
             userId: admin.id,
+            reportId: report.id,
             type: 'NEW_REPORT',
             title: 'A listing was reported',
             message: `A student reported "${listing.title}" for ${parsed.data.reason}.`,
@@ -91,7 +92,9 @@ export async function getAdminReports(_req: Request, res: Response): Promise<voi
         reason: true,
         description: true,
         status: true,
+        adminReviewNote: true,
         createdAt: true,
+        updatedAt: true,
         listing: { select: { id: true, title: true, approvalStatus: true } },
         user: { select: { id: true, name: true, email: true } },
       },
@@ -119,6 +122,7 @@ export async function getMyReports(req: Request, res: Response): Promise<void> {
         reason: true,
         description: true,
         status: true,
+        adminReviewNote: true,
         createdAt: true,
         updatedAt: true,
         listing: { select: { id: true, title: true } },
@@ -130,6 +134,39 @@ export async function getMyReports(req: Request, res: Response): Promise<void> {
   } catch (error) {
     console.error('getMyReports error:', error);
     sendError(res, 'Failed to fetch your reports', 500);
+  }
+}
+
+export async function getMyReportById(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      sendError(res, 'Authentication required', 401);
+      return;
+    }
+
+    const report = await prisma.report.findFirst({
+      where: { id: req.params.id, userId: req.user.id },
+      select: {
+        id: true,
+        reason: true,
+        description: true,
+        status: true,
+        adminReviewNote: true,
+        createdAt: true,
+        updatedAt: true,
+        listing: { select: { id: true, title: true } },
+      },
+    });
+
+    if (!report) {
+      sendError(res, 'Report not found', 404);
+      return;
+    }
+
+    sendSuccess(res, report);
+  } catch (error) {
+    console.error('getMyReportById error:', error);
+    sendError(res, 'Failed to fetch this report', 500);
   }
 }
 
@@ -167,7 +204,10 @@ export async function updateReportStatus(req: Request, res: Response): Promise<v
     const updated = await prisma.$transaction(async (tx) => {
       const savedReport = await tx.report.update({
         where: { id: report.id },
-        data: { status: parsed.data.status },
+        data: {
+          status: parsed.data.status,
+          adminReviewNote: parsed.data.adminReviewNote || null,
+        },
         select: { id: true, status: true, updatedAt: true },
       });
       await tx.auditLog.create({
@@ -185,6 +225,7 @@ export async function updateReportStatus(req: Request, res: Response): Promise<v
       await tx.notification.create({
         data: {
           userId: report.userId,
+          reportId: report.id,
           type: 'REPORT_STATUS',
           title: 'Your report was reviewed',
           message: [

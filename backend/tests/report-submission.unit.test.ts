@@ -74,6 +74,7 @@ describe('student report submission', () => {
     expect(mockedNotificationCreateMany).toHaveBeenCalledWith({
       data: [{
         userId: 'admin-id',
+        reportId: 'report-id',
         type: 'NEW_REPORT',
         title: 'A listing was reported',
         message: 'A student reported "Student accommodation" for Incorrect details.',
